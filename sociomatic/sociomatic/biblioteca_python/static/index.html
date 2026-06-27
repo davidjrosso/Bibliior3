@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sistema Biblioteca</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Sistema Biblioteca</h1>
+      <p>Socios, cuotas, pagos e impresion local</p>
+    </div>
+    <div class="actions">
+      <button id="btnInicio">Inicio</button>
+      <button id="btnNuevo">Socio</button>
+      <button id="btnCuotas">Cuotas</button>
+      <button id="btnConfig">Importes</button>
+    </div>
+  </header>
+
+  <div id="paginaInicio">
+    <section class="panel dashboard">
+      <div class="section-head">
+        <div>
+          <h2>Dashboard</h2>
+          <p>Resumen general de socios, cuotas y recaudacion.</p>
+        </div>
+        <form id="formDashboard" class="inline-form">
+          <input name="periodo" type="month" required>
+          <button>Actualizar</button>
+        </form>
+      </div>
+      <div class="dashboard-grid">
+        <div class="metric">
+          <span>Socios activos</span>
+          <strong id="dashSociosTotal">0</strong>
+        </div>
+        <div class="metric">
+          <span>Activos / jubilados</span>
+          <strong id="dashSociosTipo">0 / 0</strong>
+        </div>
+        <div class="metric">
+          <span>Cuotas pagas</span>
+          <strong id="dashCuotasPagadas">0</strong>
+        </div>
+        <div class="metric">
+          <span>Cuotas impagas</span>
+          <strong id="dashCuotasPendientes">0</strong>
+        </div>
+        <div class="metric money">
+          <span>Monto recaudado</span>
+          <strong id="dashRecaudado">$0.00</strong>
+        </div>
+        <div class="metric money">
+          <span>Monto pendiente</span>
+          <strong id="dashPendiente">$0.00</strong>
+        </div>
+      </div>
+      <div class="dashboard-lower">
+        <div>
+          <h3>Totales historicos</h3>
+          <p id="dashGlobal">Sin datos</p>
+        </div>
+        <div>
+          <h3>Por cobrador</h3>
+          <div id="dashCobradores" class="mini-list"></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <section id="paginaCuotas" class="page" hidden>
+    <section class="panel cuotas-tools cuotas-module-tools">
+      <div>
+        <h2>Modulo de cuotas</h2>
+        <p>Administracion, generacion mensual, pagos, busqueda e impresion.</p>
+      </div>
+      <button type="button" id="btnVolverInicioCuotas" class="secondary">Volver</button>
+      <form id="formGenerar" class="inline-form">
+        <input name="periodo" type="month" required>
+        <button>Generar cuotas</button>
+      </form>
+      <form id="formImprimir" class="inline-form">
+        <input name="periodo" type="month" required>
+        <select name="cobrador">
+          <option value="1">Cobrador</option>
+          <option value="3">Biblioteca</option>
+        </select>
+        <button type="submit">Abrir impresion</button>
+      </form>
+    </section>
+
+    <section class="panel cuotas-section">
+      <div class="section-head">
+        <div>
+          <h2>Administracion de cuotas</h2>
+          <p>Busque, modifique, cambie estados, elimine o imprima cuotas por periodo.</p>
+        </div>
+        <button id="btnRecargarCuotas" class="secondary">Actualizar</button>
+      </div>
+      <div class="summary-grid">
+        <div><strong id="cuotasTotal">0</strong><span>Total</span></div>
+        <div><strong id="cuotasPendientes">0</strong><span>Pendientes</span></div>
+        <div><strong id="cuotasPagadas">0</strong><span>Pagadas</span></div>
+        <div><strong id="cuotasMontoPendiente">$0.00</strong><span>Monto pendiente</span></div>
+      </div>
+      <form id="formFiltroCuotas" class="filters">
+        <input name="q" type="search" placeholder="Socio, nro., DNI o direccion">
+        <input name="periodo" type="month">
+        <select name="estado">
+          <option value="">Todos los estados</option>
+          <option value="pendiente">Pendientes</option>
+          <option value="pagada">Pagadas</option>
+        </select>
+        <select name="cobrador">
+          <option value="">Todos los cobradores</option>
+          <option value="1">1 - Cobrador</option>
+          <option value="2">2 - No me acuerdo</option>
+          <option value="3">3 - Biblioteca</option>
+          <option value="4">4 - Pago adelantado</option>
+          <option value="5">5 - Debe mas de cuatro cuotas</option>
+        </select>
+        <button>Buscar</button>
+      </form>
+      <div class="table-wrap cuotas-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Periodo</th>
+              <th>Socio</th>
+              <th>Cobrador</th>
+              <th>Monto</th>
+              <th>Estado</th>
+              <th>Pago</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuotasBody"></tbody>
+        </table>
+      </div>
+      <div class="print-actions">
+        <button type="button" id="btnPrintCobrador">Imprimir cobrador</button>
+        <button type="button" id="btnPrintBiblioteca">Imprimir biblioteca</button>
+      </div>
+    </section>
+  </section>
+
+  <section id="paginaSocios" class="page" hidden>
+    <div class="panel socio-crud">
+      <div class="crud-head">
+        <div>
+          <h2>Socios</h2>
+          <p>Alta, consulta, modificacion y baja.</p>
+        </div>
+        <button type="button" id="btnVolverInicio">Volver</button>
+      </div>
+      <div class="crud-layout">
+        <section class="crud-list">
+          <div class="toolbar">
+            <input id="buscarSocioCrud" type="search" placeholder="Buscar socio">
+            <button id="btnBuscarSocioCrud" type="button">Buscar</button>
+          </div>
+          <button id="btnSocioNuevoModo" type="button">Nuevo</button>
+          <div class="table-wrap crud-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nro.</th>
+                  <th>Socio</th>
+                  <th>DNI</th>
+                </tr>
+              </thead>
+              <tbody id="sociosCrudBody"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="crud-editor socio-cuotas-panel">
+          <div class="detail-head">
+            <div>
+              <h3 id="socioCrudTitulo">Seleccione un socio</h3>
+              <p id="socioCrudMeta">Click sobre un socio para ver sus cuotas pagas e impagas.</p>
+            </div>
+            <div class="row-actions">
+              <button type="button" id="btnSocioEditarCrud" class="secondary">Editar</button>
+              <button type="button" id="btnSocioBajaCrud" class="danger">Dar de baja</button>
+            </div>
+          </div>
+          <div id="socioCrudContacto" class="contact-box"></div>
+          <div id="socioCrudCuotas" class="cuotas"></div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <dialog id="modalSocioForm">
+    <form id="formNuevo" class="grid-form modal-form socio-form-modal">
+      <h2 id="socioFormTitulo">Nuevo socio</h2>
+      <p class="next-number wide">Proximo nro. disponible: <strong id="proximoNroCrud">-</strong></p>
+      <input name="id" type="hidden">
+      <label>Nro. socio<input name="nro_socio" type="number" min="1" required></label>
+      <label>DNI<input name="dni" required></label>
+      <label>Apellido<input name="apellido" required></label>
+      <label>Nombre<input name="nombre" required></label>
+      <label>Telefono<input name="telefono"></label>
+      <label>Email<input name="email" type="email"></label>
+      <label>Direccion<input name="direccion" required></label>
+      <label>Barrio<input name="barrio" required></label>
+      <label>Localidad<input name="localidad" required></label>
+      <label>Fecha nacimiento<input name="fecha_nacimiento" type="date"></label>
+      <label>Ocupacion<input name="ocupacion"></label>
+      <label>Estado
+        <select name="estado">
+          <option value="activo">Activo</option>
+          <option value="jubilado">Jubilado</option>
+        </select>
+      </label>
+      <label>Cobrador
+        <select name="cobrador">
+          <option value="1">1 - Cobrador</option>
+          <option value="2">2 - No me acuerdo</option>
+          <option value="3">3 - Biblioteca</option>
+          <option value="4">4 - Pago adelantado</option>
+          <option value="5">5 - Debe mas de cuatro cuotas</option>
+        </select>
+      </label>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancelar</button>
+        <button id="btnGuardarSocioCrud">Guardar socio</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalConfig">
+    <form id="formConfig" class="modal-form">
+      <h2>Importes de cuota</h2>
+      <label>Activo<input name="monto_activo" type="number" step="0.01" required></label>
+      <label>Jubilado<input name="monto_jubilado" type="number" step="0.01" required></label>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancelar</button>
+        <button>Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalCuota">
+    <form id="formEditarCuota" class="grid-form modal-form">
+      <h2>Modificar cuota</h2>
+      <input name="id" type="hidden">
+      <label>Periodo<input name="periodo" type="month" required></label>
+      <label>Monto<input name="monto" type="number" step="0.01" required></label>
+      <label>Estado
+        <select name="estado">
+          <option value="pendiente">Pendiente</option>
+          <option value="pagada">Pagada</option>
+        </select>
+      </label>
+      <label>Fecha de pago<input name="fecha_pago" type="date"></label>
+      <label class="wide">Observacion<input name="observacion"></label>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancelar</button>
+        <button>Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

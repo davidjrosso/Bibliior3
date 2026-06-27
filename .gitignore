@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Local database and generated data
+sociomatic/sociomatic/biblioteca_python/data/*.sqlite3
+sociomatic/sociomatic/biblioteca_python/data/*.sqlite3-*
+
+# Local editor/system files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
