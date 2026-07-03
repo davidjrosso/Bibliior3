@@ -7,6 +7,7 @@ CONFIG_DEFAULTS = {
     "socio_cobrador_default": "1",
     "impresion_cobrador_default": "1",
     "periodo_default": "siguiente",
+    "moroso_cuotas_limite": "4",
 }
 
 
@@ -60,6 +61,11 @@ def update_config(conn, data: dict) -> None:
     if periodo_default not in {"actual", "siguiente"}:
         raise ValueError("Periodo predeterminado invalido.")
     values["periodo_default"] = periodo_default
+
+    moroso_cuotas_limite = int(data.get("moroso_cuotas_limite", 4))
+    if moroso_cuotas_limite < 1:
+        raise ValueError("El limite de cuotas para moroso debe ser mayor a cero.")
+    values["moroso_cuotas_limite"] = str(moroso_cuotas_limite)
 
     for key, value in values.items():
         conn.execute(

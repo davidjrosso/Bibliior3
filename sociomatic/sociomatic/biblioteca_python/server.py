@@ -3,7 +3,7 @@ import os
 from urllib.parse import parse_qs, unquote, urlparse
 
 from app.models.database import init_db
-from app.router import dispatch_api, dispatch_print
+from app.router import dispatch_api, dispatch_print, dispatch_print_morosos
 from app.settings import DB_PATH, STATIC_DIR
 
 
@@ -23,6 +23,9 @@ class BibliotecaHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/imprimir":
             dispatch_print(self, parse_qs(parsed.query))
+            return
+        if parsed.path == "/imprimir-morosos":
+            dispatch_print_morosos(self, parse_qs(parsed.query))
             return
         super().do_GET()
 

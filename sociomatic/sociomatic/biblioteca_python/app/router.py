@@ -74,6 +74,9 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
             if path == "/api/socios" and method == "GET":
                 socio_controller.index(handler, conn, query)
                 return
+            if path == "/api/socios/morosos" and method == "GET":
+                socio_controller.morosos(handler, conn, query)
+                return
             if path == "/api/socios" and method == "POST":
                 socio_controller.create(handler, conn, query)
                 return
@@ -92,6 +95,9 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
 
             if path == "/api/cuotas/generar" and method == "POST":
                 cuota_controller.generate(handler, conn, query)
+                return
+            if path == "/api/cuotas/adelanto" and method == "POST":
+                cuota_controller.advance_payment(handler, conn, query)
                 return
             if path == "/api/cuotas" and method == "GET":
                 cuota_controller.index(handler, conn, query)
@@ -143,3 +149,8 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
 def dispatch_print(handler, query: dict) -> None:
     with get_db() as conn:
         print_controller.print_cuotas(handler, conn, query)
+
+
+def dispatch_print_morosos(handler, query: dict) -> None:
+    with get_db() as conn:
+        print_controller.print_morosos(handler, conn, query)

@@ -19,6 +19,10 @@ def index(handler, conn, query):
     )
 
 
+def morosos(handler, conn, _query):
+    json_response(handler, {"exito": True, "morosos": socio_model.listar_morosos(conn)})
+
+
 def create(handler, conn, _query):
     result = socio_model.crear(conn, read_json(handler))
     json_response(

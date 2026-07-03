@@ -1,6 +1,7 @@
 const state = {
   socios: [],
   cuotas: [],
+  morosos: [],
   selectedId: null,
   socioCrudId: null,
   config: {},
@@ -96,6 +97,7 @@ function resetNuevoSocio() {
   form.reset();
   form.id.value = '';
   form.nro_socio.value = $('#proximoNroCrud').textContent !== '-' ? $('#proximoNroCrud').textContent : '';
+  form.fecha_alta.value = fechaActual();
   form.estado.value = state.config.socio_estado_default || 'activo';
   form.cobrador.value = state.config.socio_cobrador_default || '1';
   state.socioCrudId = null;
@@ -113,7 +115,8 @@ async function cargarConfig() {
     'socio_estado_default',
     'socio_cobrador_default',
     'impresion_cobrador_default',
-    'periodo_default'
+    'periodo_default',
+    'moroso_cuotas_limite'
   ]) {
     if (form[field]) form[field].value = state.config[field] || '';
   }
@@ -387,6 +390,12 @@ async function cargarCuotas() {
   renderResumenCuotas();
 }
 
+async function cargarMorosos() {
+  const data = await api('/api/socios/morosos');
+  state.morosos = data.morosos;
+  renderMorosos();
+}
+
 function renderSocios() {
   const body = $('#sociosBody');
   if (!body) return;
@@ -476,7 +485,7 @@ async function abrirModalSocio(id = null) {
   const socio = data.socio;
   const form = $('#formNuevo');
   form.id.value = socio.id;
-  for (const field of ['nro_socio', 'dni', 'apellido', 'nombre', 'telefono', 'email', 'direccion', 'barrio', 'localidad', 'fecha_nacimiento', 'ocupacion', 'estado', 'cobrador']) {
+  for (const field of ['nro_socio', 'dni', 'apellido', 'nombre', 'telefono', 'email', 'direccion', 'barrio', 'localidad', 'fecha_nacimiento', 'fecha_alta', 'ocupacion', 'estado', 'cobrador']) {
     form[field].value = socio[field] ?? '';
   }
   $('#socioFormTitulo').textContent = `Modificar socio #${socio.nro_socio}`;
@@ -495,7 +504,7 @@ async function seleccionarSocio(id) {
   $('#detalleMeta').textContent = `${socio.direccion} | Debe ${socio.cuotas_debe} cuota(s) | Adelantadas ${socio.cuotas_adelantadas}`;
 
   const form = $('#formSocio');
-  for (const field of ['nro_socio', 'dni', 'apellido', 'nombre', 'telefono', 'email', 'direccion', 'barrio', 'localidad', 'fecha_nacimiento', 'ocupacion', 'estado', 'cobrador']) {
+  for (const field of ['nro_socio', 'dni', 'apellido', 'nombre', 'telefono', 'email', 'direccion', 'barrio', 'localidad', 'fecha_nacimiento', 'fecha_alta', 'ocupacion', 'estado', 'cobrador']) {
     form[field].value = socio[field] ?? '';
   }
   renderCuotas(data.cuotas);
@@ -617,6 +626,47 @@ function renderResumenCuotas() {
   $('#cuotasMontoPendiente').textContent = `$${montoPendiente.toFixed(2)}`;
 }
 
+function renderMorosos() {
+  const body = $('#morososBody');
+  if (!body) return;
+  body.innerHTML = '';
+  if (!state.morosos.length) {
+    body.innerHTML = '<tr><td colspan="6">No hay socios morosos con el limite actual.</td></tr>';
+    return;
+  }
+  for (const socio of state.morosos) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${socio.nro_socio}</td>
+      <td>${socio.apellido}, ${socio.nombre}<br><small>${socio.dni}</small></td>
+      <td>${socio.telefono || '-'}<br><small>${socio.email || ''}</small></td>
+      <td>${socio.cobrador} - ${socio.cobrador_texto}</td>
+      <td>${socio.cuotas_impagas}</td>
+      <td>${money(socio.deuda)}</td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
+function abrirPagoAdelantado() {
+  const form = $('#formPagoAdelantado');
+  form.reset();
+  const select = form.socio_id;
+  select.innerHTML = '';
+  for (const socio of state.socios) {
+    const option = document.createElement('option');
+    option.value = socio.id;
+    option.textContent = `#${socio.nro_socio} ${socio.apellido}, ${socio.nombre}`;
+    select.appendChild(option);
+  }
+  const selected = state.socioCrudId || state.selectedId;
+  if (selected) select.value = String(selected);
+  form.desde_periodo.value = periodoDefault();
+  form.fecha_pago.value = fechaActual();
+  form.cantidad.value = 1;
+  abrir($('#modalPagoAdelantado'));
+}
+
 async function cargarCaja() {
   const fecha = $('#formCajaDia') ? $('#formCajaDia').fecha.value || fechaActual() : fechaActual();
   const data = await api(`/api/caja?fecha=${encodeURIComponent(fecha)}`);
@@ -719,6 +769,7 @@ async function refrescarTodo() {
   await cargarDashboard();
   await cargarSocios();
   await cargarCuotas();
+  await cargarMorosos();
   if ($('#paginaCaja') && !$('#paginaCaja').hidden) {
     await cargarCaja();
   }
@@ -754,6 +805,7 @@ function mostrarPaginaCuotas() {
   $('#paginaConfig').hidden = true;
   $('#paginaCaja').hidden = true;
   cargarCuotas();
+  cargarMorosos();
 }
 
 function mostrarPaginaInicio() {
@@ -843,6 +895,9 @@ async function init() {
   $('#btnCajaIngreso').addEventListener('click', () => abrirMovimientoCaja('ingreso'));
   $('#btnCajaEgreso').addEventListener('click', () => abrirMovimientoCaja('egreso'));
   $('#btnCajaActualizar').addEventListener('click', cargarCaja);
+  $('#btnPagoAdelantado').addEventListener('click', abrirPagoAdelantado);
+  $('#btnActualizarMorosos').addEventListener('click', cargarMorosos);
+  $('#btnImprimirMorosos').addEventListener('click', () => window.open('/imprimir-morosos', '_blank'));
   $('#formCajaDia').fecha.addEventListener('change', cargarCaja);
   $('#formAdminClave').addEventListener('submit', (event) => {
     event.preventDefault();
@@ -1016,6 +1071,20 @@ async function init() {
     await cargarCaja();
   });
 
+  $('#formPagoAdelantado').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    const request = { method: 'POST', body: JSON.stringify(data) };
+    const cajaCerrada = state.caja.dia && state.caja.dia.fecha === data.fecha_pago && Number(state.caja.dia.cerrado) === 1;
+    const result = cajaCerrada
+      ? await apiAdmin('/api/cuotas/adelanto', request, 'Autorizar pago adelantado en caja cerrada.')
+      : await api('/api/cuotas/adelanto', request);
+    cerrarDialogs();
+    await refrescarTodo();
+    const cajaMsg = data.medio_pago === 'efectivo' ? ' Ingreso registrado en caja.' : ' No mueve caja diaria.';
+    toast(`Pago adelantado: ${result.cuotas_pagadas} cuota(s) pagada(s).${cajaMsg}`);
+  });
+
   $('#formTipoSocio').addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = formData(event.currentTarget);
@@ -1095,6 +1164,7 @@ async function init() {
   await cargarDashboard();
   await cargarSocios();
   await cargarCuotas();
+  await cargarMorosos();
   await cargarCaja();
 }
 

@@ -1,5 +1,5 @@
 from app.models import caja_model, config_model, socio_model
-from app.models.helpers import next_period, now_iso, today_iso, valid_period
+from app.models.helpers import add_months, next_period, now_iso, today_iso, valid_date, valid_period
 from app.settings import COBRADORES
 
 
@@ -139,6 +139,58 @@ def marcar_pagada(conn, cuota_id: int) -> None:
     caja_model.registrar_cobro_cuota(conn, cuota_id)
 
 
+def pago_adelantado(conn, data: dict) -> dict:
+    socio_id = int(data.get("socio_id"))
+    desde_periodo = data.get("desde_periodo")
+    cantidad = int(data.get("cantidad") or 0)
+    medio_pago = str(data.get("medio_pago", "efectivo")).strip()
+    fecha_pago = str(data.get("fecha_pago", "")).strip() or today_iso()
+    if not valid_period(desde_periodo):
+        raise ValueError("Periodo inicial invalido. Use AAAA-MM.")
+    if cantidad < 1 or cantidad > 60:
+        raise ValueError("La cantidad de meses debe estar entre 1 y 60.")
+    if not valid_date(fecha_pago):
+        raise ValueError("Fecha de pago invalida.")
+    socio = socio_model.obtener(conn, socio_id)
+    if not socio or socio["fecha_baja"]:
+        raise ValueError("Socio activo no encontrado.")
+    creadas = 0
+    pagadas = 0
+    ids = []
+    timestamp = now_iso()
+    for offset in range(cantidad):
+        periodo = add_months(desde_periodo, offset)
+        monto = config_model.cuota_monto(conn, socio["estado"])
+        row = conn.execute(
+            "SELECT id FROM cuotas WHERE socio_id = ? AND periodo = ?",
+            (socio_id, periodo),
+        ).fetchone()
+        if row:
+            cuota_id = row["id"]
+            conn.execute(
+                """
+                UPDATE cuotas
+                SET monto = ?, estado = 'pagada', fecha_pago = ?, observacion = ?, actualizado_en = ?
+                WHERE id = ?
+                """,
+                (monto, fecha_pago, "Pago adelantado", timestamp, cuota_id),
+            )
+        else:
+            cursor = conn.execute(
+                """
+                INSERT INTO cuotas (socio_id, periodo, monto, estado, fecha_pago, observacion, creado_en, actualizado_en)
+                VALUES (?, ?, ?, 'pagada', ?, 'Pago adelantado', ?, ?)
+                """,
+                (socio_id, periodo, monto, fecha_pago, timestamp, timestamp),
+            )
+            cuota_id = cursor.lastrowid
+            creadas += 1
+        caja_model.registrar_cobro_cuota(conn, cuota_id, medio_pago)
+        ids.append(cuota_id)
+        pagadas += 1
+    return {"cuotas_creadas": creadas, "cuotas_pagadas": pagadas, "ids": ids}
+
+
 def marcar_pendiente(conn, cuota_id: int) -> None:
     cursor = conn.execute(
         "UPDATE cuotas SET estado = 'pendiente', fecha_pago = NULL, actualizado_en = ? WHERE id = ?",
@@ -151,6 +203,7 @@ def marcar_pendiente(conn, cuota_id: int) -> None:
 
 def cuotas_para_imprimir(conn, periodo: str, cobrador: int):
     order = "s.direccion COLLATE NOCASE, s.apellido COLLATE NOCASE" if cobrador == 1 else "s.nro_socio"
+    limite_moroso = int(config_model.get_config(conn).get("moroso_cuotas_limite", "4"))
     return conn.execute(
         f"""
         SELECT c.*, s.nro_socio, s.apellido, s.nombre, s.direccion, s.barrio,
@@ -161,7 +214,13 @@ def cuotas_para_imprimir(conn, periodo: str, cobrador: int):
           AND s.fecha_baja IS NULL
           AND s.cobrador = ?
           AND c.estado = 'pendiente'
+          AND (
+            SELECT COUNT(*)
+            FROM cuotas cx
+            WHERE cx.socio_id = s.id
+              AND cx.estado = 'pendiente'
+          ) <= ?
         ORDER BY {order}
         """,
-        (periodo, cobrador),
+        (periodo, cobrador, limite_moroso),
     ).fetchall()

@@ -80,6 +80,7 @@
         <p>Administracion, generacion mensual, pagos, busqueda e impresion.</p>
       </div>
       <button type="button" id="btnVolverInicioCuotas" class="secondary">Volver</button>
+      <button type="button" id="btnPagoAdelantado" class="secondary">Pago adelantado</button>
       <form id="formGenerar" class="inline-form">
         <input name="periodo" type="month" required>
         <button>Generar cuotas</button>
@@ -145,6 +146,34 @@
       <div class="print-actions">
         <button type="button" id="btnPrintCobrador">Imprimir cobrador</button>
         <button type="button" id="btnPrintBiblioteca">Imprimir biblioteca</button>
+      </div>
+    </section>
+
+    <section class="panel cuotas-section">
+      <div class="section-head">
+        <div>
+          <h2>Morosos</h2>
+          <p>Socios con mas cuotas impagas que el limite configurado.</p>
+        </div>
+        <div class="row-actions">
+          <button type="button" id="btnActualizarMorosos" class="secondary">Actualizar</button>
+          <button type="button" id="btnImprimirMorosos">Imprimir morosos</button>
+        </div>
+      </div>
+      <div class="table-wrap cuotas-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Nro.</th>
+              <th>Socio</th>
+              <th>Contacto</th>
+              <th>Cobrador</th>
+              <th>Impagas</th>
+              <th>Deuda</th>
+            </tr>
+          </thead>
+          <tbody id="morososBody"></tbody>
+        </table>
       </div>
     </section>
   </section>
@@ -233,6 +262,7 @@
                 <option value="3">3 - Biblioteca</option>
               </select>
             </label>
+            <label>Moroso si debe mas de<input name="moroso_cuotas_limite" type="number" min="1" step="1" required></label>
           </div>
         </section>
         <div class="form-actions">
@@ -365,6 +395,7 @@
       <label>Barrio<input name="barrio" required></label>
       <label>Localidad<input name="localidad" required></label>
       <label>Fecha nacimiento<input name="fecha_nacimiento" type="date"></label>
+      <label>Fecha ingreso<input name="fecha_alta" type="date" required></label>
       <label>Ocupacion<input name="ocupacion"></label>
       <label>Estado
         <select name="estado">
@@ -470,6 +501,31 @@
     </form>
   </dialog>
 
+  <dialog id="modalPagoAdelantado">
+    <form id="formPagoAdelantado" class="grid-form modal-form">
+      <h2>Pago adelantado</h2>
+      <label>Socio
+        <select name="socio_id" required></select>
+      </label>
+      <label>Desde periodo<input name="desde_periodo" type="month" required></label>
+      <label>Cantidad de meses<input name="cantidad" type="number" min="1" max="60" value="1" required></label>
+      <label>Fecha de pago<input name="fecha_pago" type="date" required></label>
+      <label>Medio de pago
+        <select name="medio_pago">
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="cheque">Cheque</option>
+          <option value="otro">Otro</option>
+        </select>
+      </label>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancelar</button>
+        <button>Generar y pagar</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="modalAdminClave">
     <form id="formAdminClave" class="modal-form config-modal-form">
       <h2>Clave de administrador</h2>
@@ -483,6 +539,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=20260703-seguridad-fix"></script>
+  <script src="app.js?v=20260703-adelantos-morosos"></script>
 </body>
 </html>

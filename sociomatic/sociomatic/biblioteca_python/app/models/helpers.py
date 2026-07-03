@@ -32,6 +32,21 @@ def next_period(periodo: str | None = None) -> str:
     return f"{year:04d}-{month:02d}"
 
 
+def add_months(periodo: str, months: int) -> str:
+    year, month = map(int, periodo.split("-"))
+    month += months
+    year += (month - 1) // 12
+    month = ((month - 1) % 12) + 1
+    return f"{year:04d}-{month:02d}"
+
+
 def valid_period(value: str) -> bool:
     return bool(re.fullmatch(r"\d{4}-\d{2}", value or "")) and 1 <= int(value[5:7]) <= 12
 
+
+def valid_date(value: str) -> bool:
+    try:
+        datetime.strptime(value or "", "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False

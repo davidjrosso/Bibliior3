@@ -49,3 +49,49 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
   <main class="hoja">{body}</main>
 </body>
 </html>"""
+
+
+def render_morosos(rows, limite: int) -> str:
+    items = []
+    for row in rows:
+        items.append(
+            f"""
+            <tr>
+              <td>{row['nro_socio']}</td>
+              <td>{row['apellido']}, {row['nombre']}</td>
+              <td>{row['dni']}</td>
+              <td>{row['telefono'] or '-'}</td>
+              <td>{row['direccion']} - {row['localidad']}</td>
+              <td>{row['cuotas_impagas']}</td>
+              <td>${float(row['deuda']):.2f}</td>
+            </tr>
+            """
+        )
+    body = "\n".join(items) or "<tr><td colspan='7'>No hay socios morosos.</td></tr>"
+    return f"""<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Socios morosos</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; color: #111; }}
+    .barra {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }}
+    table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
+    th, td {{ border-bottom: 1px solid #bbb; text-align: left; padding: 6px; }}
+    th {{ background: #eee; }}
+    @media print {{ .barra {{ display: none; }} }}
+  </style>
+</head>
+<body>
+  <div class="barra">
+    <div><strong>Socios morosos</strong> | Mas de {limite} cuota(s) impaga(s) | Total: {len(rows)}</div>
+    <button onclick="window.print()">Imprimir</button>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Nro.</th><th>Socio</th><th>DNI</th><th>Telefono</th><th>Direccion</th><th>Impagas</th><th>Deuda</th></tr>
+    </thead>
+    <tbody>{body}</tbody>
+  </table>
+</body>
+</html>"""

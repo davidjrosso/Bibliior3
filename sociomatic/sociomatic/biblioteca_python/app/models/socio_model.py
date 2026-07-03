@@ -1,4 +1,4 @@
-from app.models.helpers import current_period, now_iso, row_to_dict, today_iso
+from app.models.helpers import current_period, now_iso, row_to_dict, today_iso, valid_date
 from app.models import config_model
 
 
@@ -28,10 +28,13 @@ def validate_socio(data: dict, editing: bool = False) -> dict:
         "barrio": str(data.get("barrio", "")).strip(),
         "localidad": str(data.get("localidad", "")).strip(),
         "fecha_nacimiento": str(data.get("fecha_nacimiento", "")).strip() or None,
+        "fecha_alta": str(data.get("fecha_alta", "")).strip() or today_iso(),
         "ocupacion": str(data.get("ocupacion", "")).strip(),
         "estado": str(data.get("estado", "activo")).strip(),
         "cobrador": int(data.get("cobrador", 1)),
     }
+    if not valid_date(clean["fecha_alta"]):
+        raise ValueError("Fecha de ingreso invalida.")
     if clean["estado"] == "":
         raise ValueError("Estado invalido.")
     if clean["cobrador"] < 1:
@@ -129,7 +132,7 @@ def crear(conn, data: dict) -> dict:
             clean["ocupacion"],
             clean["estado"],
             clean["cobrador"],
-            today_iso(),
+            clean["fecha_alta"],
             timestamp,
             timestamp,
         ),
@@ -147,7 +150,7 @@ def actualizar(conn, socio_id: int, data: dict) -> None:
         UPDATE socios
         SET nro_socio = ?, dni = ?, apellido = ?, nombre = ?, telefono = ?, email = ?,
             direccion = ?, barrio = ?, localidad = ?,
-            fecha_nacimiento = ?, ocupacion = ?, estado = ?, cobrador = ?, actualizado_en = ?
+            fecha_nacimiento = ?, ocupacion = ?, estado = ?, cobrador = ?, fecha_alta = ?, actualizado_en = ?
         WHERE id = ?
         """,
         (
@@ -164,10 +167,45 @@ def actualizar(conn, socio_id: int, data: dict) -> None:
             clean["ocupacion"],
             clean["estado"],
             clean["cobrador"],
+            clean["fecha_alta"],
             now_iso(),
             socio_id,
         ),
     )
+
+
+def listar_morosos(conn) -> list[dict]:
+    limite = int(config_model.get_config(conn).get("moroso_cuotas_limite", "4"))
+    rows = conn.execute(
+        """
+        SELECT
+            s.id,
+            s.nro_socio,
+            s.apellido,
+            s.nombre,
+            s.dni,
+            s.telefono,
+            s.email,
+            s.direccion,
+            s.localidad,
+            s.cobrador,
+            COUNT(c.id) AS cuotas_impagas,
+            COALESCE(SUM(c.monto), 0) AS deuda
+        FROM socios s
+        JOIN cuotas c ON c.socio_id = s.id AND c.estado = 'pendiente'
+        WHERE s.fecha_baja IS NULL
+        GROUP BY s.id
+        HAVING COUNT(c.id) > ?
+        ORDER BY cuotas_impagas DESC, s.apellido COLLATE NOCASE, s.nombre COLLATE NOCASE
+        """,
+        (limite,),
+    ).fetchall()
+    morosos = []
+    for row in rows:
+        item = dict(row)
+        item["cobrador_texto"] = config_model.cobrador_nombre(conn, item["cobrador"])
+        morosos.append(item)
+    return morosos
 
 
 def baja(conn, socio_id: int) -> int:

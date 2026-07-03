@@ -158,7 +158,12 @@ def eliminar_movimiento(conn, movimiento_id: int) -> None:
         raise LookupError("Movimiento de caja no encontrado")
 
 
-def registrar_cobro_cuota(conn, cuota_id: int) -> None:
+def registrar_cobro_cuota(conn, cuota_id: int, medio_pago: str = "efectivo") -> None:
+    if medio_pago not in MEDIOS_PAGO:
+        raise ValueError("Medio de pago invalido.")
+    if medio_pago != "efectivo":
+        eliminar_cobro_cuota(conn, cuota_id)
+        return
     row = conn.execute(
         """
         SELECT c.id, c.periodo, c.monto, c.fecha_pago, s.nro_socio, s.apellido, s.nombre
@@ -185,19 +190,19 @@ def registrar_cobro_cuota(conn, cuota_id: int) -> None:
             """
             UPDATE caja_movimientos
             SET fecha = ?, tipo = 'ingreso', concepto = ?, descripcion = ?, monto = ?,
-                referencia = ?, actualizado_en = ?
+                medio_pago = ?, referencia = ?, actualizado_en = ?
             WHERE cuota_id = ?
             """,
-            (fecha, concepto, descripcion, float(row["monto"]), referencia, timestamp, cuota_id),
+            (fecha, concepto, descripcion, float(row["monto"]), medio_pago, referencia, timestamp, cuota_id),
         )
         return
     conn.execute(
         """
         INSERT INTO caja_movimientos (
             fecha, tipo, concepto, descripcion, monto, medio_pago, referencia, cuota_id, creado_en, actualizado_en
-        ) VALUES (?, 'ingreso', ?, ?, ?, 'efectivo', ?, ?, ?, ?)
+        ) VALUES (?, 'ingreso', ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (fecha, concepto, descripcion, float(row["monto"]), referencia, cuota_id, timestamp, timestamp),
+        (fecha, concepto, descripcion, float(row["monto"]), medio_pago, referencia, cuota_id, timestamp, timestamp),
     )
 
 
