@@ -1,4 +1,5 @@
 from app.models.helpers import current_period
+from app.models import config_model
 from app.settings import COBRADORES
 
 
@@ -94,7 +95,7 @@ def obtener(conn, periodo: str | None = None) -> dict:
         "por_cobrador": [
             {
                 "cobrador": row["cobrador"],
-                "nombre": COBRADORES.get(row["cobrador"], ""),
+                "nombre": config_model.cobrador_nombre(conn, row["cobrador"]),
                 "cuotas": row["cuotas"] or 0,
                 "recaudado": float(row["recaudado"] or 0),
                 "pendiente": float(row["pendiente"] or 0),

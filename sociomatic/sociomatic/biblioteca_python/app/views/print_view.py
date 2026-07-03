@@ -1,7 +1,4 @@
-from app.settings import COBRADORES
-
-
-def render_print(periodo: str, cobrador: int, rows) -> str:
+def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
     cards = []
     for row in rows:
         socio = f"{row['apellido']}, {row['nombre']}"
@@ -46,7 +43,7 @@ def render_print(periodo: str, cobrador: int, rows) -> str:
 </head>
 <body>
   <div class="barra">
-    <div><strong>Periodo:</strong> {periodo} | <strong>Cobrador:</strong> {COBRADORES[cobrador]} | <strong>Total:</strong> {total}</div>
+    <div><strong>Periodo:</strong> {periodo} | <strong>Cobrador:</strong> {cobrador_nombre} | <strong>Total:</strong> {total}</div>
     <button onclick="window.print()">Imprimir</button>
   </div>
   <main class="hoja">{body}</main>

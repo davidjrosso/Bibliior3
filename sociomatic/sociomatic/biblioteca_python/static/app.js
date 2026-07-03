@@ -3,16 +3,40 @@ const state = {
   cuotas: [],
   selectedId: null,
   socioCrudId: null,
-  config: {}
+  config: {},
+  tiposSocio: [],
+  cobradores: [],
+  auditoria: [],
+  caja: {
+    dia: null,
+    movimientos: [],
+    resumen: {}
+  }
 };
 
 const $ = (selector) => document.querySelector(selector);
+let adminKeyResolve = null;
+let adminKeyReject = null;
 
 function periodoSiguiente() {
   const now = new Date();
   const year = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
   const month = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
   return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function periodoActual() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function fechaActual() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function periodoDefault() {
+  return state.config.periodo_default === 'actual' ? periodoActual() : periodoSiguiente();
 }
 
 async function api(url, options = {}) {
@@ -30,12 +54,34 @@ async function api(url, options = {}) {
   return data;
 }
 
+function pedirClaveAdmin(motivo) {
+  return Promise.resolve(window.prompt(`${motivo || 'Esta accion requiere permiso.'}\n\nIngrese clave de administrador:`) || '');
+}
+
+async function apiAdmin(url, options = {}, motivo = '') {
+  const clave = await pedirClaveAdmin(motivo);
+  if (!clave) throw new Error('Accion cancelada');
+  return api(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      'X-Admin-Key': clave
+    }
+  });
+}
+
 function toast(message) {
   const el = $('#toast');
   el.textContent = message;
   el.hidden = false;
   setTimeout(() => { el.hidden = true; }, 2600);
 }
+
+window.addEventListener('unhandledrejection', (event) => {
+  const message = event.reason && event.reason.message ? event.reason.message : 'Operacion cancelada';
+  if (message !== 'Accion cancelada') toast(message);
+  event.preventDefault();
+});
 
 function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
@@ -50,8 +96,8 @@ function resetNuevoSocio() {
   form.reset();
   form.id.value = '';
   form.nro_socio.value = $('#proximoNroCrud').textContent !== '-' ? $('#proximoNroCrud').textContent : '';
-  form.estado.value = 'activo';
-  form.cobrador.value = '1';
+  form.estado.value = state.config.socio_estado_default || 'activo';
+  form.cobrador.value = state.config.socio_cobrador_default || '1';
   state.socioCrudId = null;
   $('#socioFormTitulo').textContent = 'Nuevo socio';
 }
@@ -59,8 +105,225 @@ function resetNuevoSocio() {
 async function cargarConfig() {
   const data = await api('/api/config');
   state.config = data.config;
-  $('#formConfig').monto_activo.value = state.config.monto_activo || 0;
-  $('#formConfig').monto_jubilado.value = state.config.monto_jubilado || 0;
+  state.tiposSocio = data.config.tipos_socio || [];
+  state.cobradores = data.config.cobradores || [];
+  state.auditoria = data.auditoria || [];
+  const form = $('#formConfig');
+  for (const field of [
+    'socio_estado_default',
+    'socio_cobrador_default',
+    'impresion_cobrador_default',
+    'periodo_default'
+  ]) {
+    if (form[field]) form[field].value = state.config[field] || '';
+  }
+  aplicarConfigUI();
+  renderConfigCrud();
+  renderAuditoria();
+}
+
+function cobradorTexto(numero) {
+  const item = state.cobradores.find(cobrador => Number(cobrador.id) === Number(numero));
+  return item ? item.nombre : '';
+}
+
+function tipoSocioTexto(id) {
+  const item = state.tiposSocio.find(tipo => tipo.id === id);
+  return item ? item.nombre : id;
+}
+
+function actualizarOpcionesCobrador(select, valores) {
+  const value = select.value;
+  select.innerHTML = '';
+  for (const item of valores) {
+    const option = document.createElement('option');
+    option.value = item.value;
+    option.textContent = item.label;
+    select.appendChild(option);
+  }
+  if ([...select.options].some(option => option.value === value)) {
+    select.value = value;
+  }
+}
+
+function aplicarConfigUI() {
+  const todos = [{ value: '', label: 'Todos los cobradores' }];
+  const cobradoresActivos = state.cobradores.filter(cobrador => Number(cobrador.activo) === 1);
+  const cobradores = cobradoresActivos.map(cobrador => ({
+    value: String(cobrador.id),
+    label: `${cobrador.id} - ${cobrador.nombre}`
+  }));
+  const impresion = cobradores;
+  const tipos = state.tiposSocio
+    .filter(tipo => Number(tipo.activo) === 1)
+    .map(tipo => ({ value: tipo.id, label: tipo.nombre }));
+
+  document.querySelectorAll('select[name="cobrador"]').forEach(select => {
+    if (select.closest('#formFiltroCuotas')) {
+      actualizarOpcionesCobrador(select, todos.concat(cobradores));
+    } else if (select.closest('#formImprimir')) {
+      actualizarOpcionesCobrador(select, impresion);
+    } else {
+      actualizarOpcionesCobrador(select, cobradores);
+    }
+  });
+  if ($('#formConfig').socio_cobrador_default) {
+    actualizarOpcionesCobrador($('#formConfig').socio_cobrador_default, cobradores);
+  }
+  if ($('#formConfig').impresion_cobrador_default) {
+    actualizarOpcionesCobrador($('#formConfig').impresion_cobrador_default, impresion.length ? impresion : cobradores);
+  }
+  document.querySelectorAll('select[name="estado"]').forEach(select => {
+    if (select.closest('#formFiltroCuotas') || select.closest('#formEditarCuota')) return;
+    actualizarOpcionesCobrador(select, tipos);
+  });
+  if ($('#formConfig').socio_estado_default) {
+    actualizarOpcionesCobrador($('#formConfig').socio_estado_default, tipos);
+  }
+}
+
+function renderConfigCrud() {
+  const tiposBody = $('#tiposSocioBody');
+  const cobradoresBody = $('#cobradoresBody');
+  if (tiposBody) {
+    tiposBody.innerHTML = '';
+    for (const tipo of state.tiposSocio) {
+      const card = document.createElement('article');
+      card.className = `config-item ${Number(tipo.activo) === 1 ? '' : 'inactive'}`;
+      card.innerHTML = `
+        <div>
+          <strong>${tipo.nombre}</strong>
+          <span>${money(tipo.monto)} por cuota</span>
+          <small>${Number(tipo.activo) === 1 ? 'Disponible para nuevos socios' : 'Inactivo'}</small>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="secondary" data-edit-tipo="${tipo.id}">Editar</button>
+          <button type="button" class="danger" data-delete-tipo="${tipo.id}">${Number(tipo.activo) === 1 ? 'Desactivar' : 'Eliminar'}</button>
+        </div>
+      `;
+      tiposBody.appendChild(card);
+    }
+    tiposBody.querySelectorAll('[data-edit-tipo]').forEach(btn => {
+      btn.addEventListener('click', () => editarTipoSocio(btn.dataset.editTipo));
+    });
+    tiposBody.querySelectorAll('[data-delete-tipo]').forEach(btn => {
+      btn.addEventListener('click', () => borrarTipoSocio(btn.dataset.deleteTipo));
+    });
+  }
+  if (cobradoresBody) {
+    cobradoresBody.innerHTML = '';
+    for (const cobrador of state.cobradores) {
+      const card = document.createElement('article');
+      card.className = `config-item ${Number(cobrador.activo) === 1 ? '' : 'inactive'}`;
+      card.innerHTML = `
+        <div>
+          <strong>${cobrador.nombre}</strong>
+          <span>Cobrador ${cobrador.id}</span>
+          <small>${Number(cobrador.activo) === 1 ? 'Disponible para socios e impresion' : 'Inactivo'}</small>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="secondary" data-edit-cobrador="${cobrador.id}">Editar</button>
+          <button type="button" class="danger" data-delete-cobrador="${cobrador.id}">${Number(cobrador.activo) === 1 ? 'Desactivar' : 'Eliminar'}</button>
+        </div>
+      `;
+      cobradoresBody.appendChild(card);
+    }
+    cobradoresBody.querySelectorAll('[data-edit-cobrador]').forEach(btn => {
+      btn.addEventListener('click', () => editarCobrador(Number(btn.dataset.editCobrador)));
+    });
+    cobradoresBody.querySelectorAll('[data-delete-cobrador]').forEach(btn => {
+      btn.addEventListener('click', () => borrarCobrador(Number(btn.dataset.deleteCobrador)));
+    });
+  }
+}
+
+function renderAuditoria() {
+  const body = $('#auditoriaBody');
+  if (!body) return;
+  body.innerHTML = '';
+  if (!state.auditoria.length) {
+    body.innerHTML = '<div class="empty-small">Sin acciones registradas.</div>';
+    return;
+  }
+  for (const item of state.auditoria) {
+    const row = document.createElement('div');
+    row.className = 'audit-item';
+    row.innerHTML = `
+      <strong>${item.accion}</strong>
+      <span>${item.detalle || '-'}</span>
+      <small>${item.creado_en}</small>
+    `;
+    body.appendChild(row);
+  }
+}
+
+function limpiarTipoSocio() {
+  const form = $('#formTipoSocio');
+  form.reset();
+  form.id.value = '';
+  form.activo.checked = true;
+  $('#tipoSocioTitulo').textContent = 'Nuevo tipo de socio';
+  abrir($('#modalTipoSocio'));
+}
+
+function limpiarCobrador() {
+  const form = $('#formCobrador');
+  form.reset();
+  form.id.value = '';
+  form.activo.checked = true;
+  $('#cobradorTitulo').textContent = 'Nuevo cobrador';
+  abrir($('#modalCobrador'));
+}
+
+function editarTipoSocio(id) {
+  const tipo = state.tiposSocio.find(item => item.id === id);
+  if (!tipo) return;
+  const form = $('#formTipoSocio');
+  form.id.value = tipo.id;
+  form.nombre.value = tipo.nombre;
+  form.monto.value = tipo.monto;
+  form.activo.checked = Number(tipo.activo) === 1;
+  $('#tipoSocioTitulo').textContent = `Editar ${tipo.nombre}`;
+  abrir($('#modalTipoSocio'));
+}
+
+function editarCobrador(id) {
+  const cobrador = state.cobradores.find(item => Number(item.id) === Number(id));
+  if (!cobrador) return;
+  const form = $('#formCobrador');
+  form.id.value = cobrador.id;
+  form.nombre.value = cobrador.nombre;
+  form.activo.checked = Number(cobrador.activo) === 1;
+  $('#cobradorTitulo').textContent = `Editar ${cobrador.nombre}`;
+  abrir($('#modalCobrador'));
+}
+
+async function borrarTipoSocio(id) {
+  if (!confirm('Dar de baja este tipo de socio? Si esta usado, quedara inactivo.')) return;
+  await apiAdmin(
+    `/api/config/tipos-socio/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    'Autorizar baja de tipo de socio.'
+  );
+  await cargarConfig();
+  await refrescarTodo();
+  toast('Tipo de socio dado de baja');
+}
+
+async function borrarCobrador(id) {
+  if (!confirm('Dar de baja este cobrador? Si esta usado, quedara inactivo.')) return;
+  await apiAdmin(`/api/config/cobradores/${id}`, { method: 'DELETE' }, 'Autorizar baja de cobrador.');
+  await cargarConfig();
+  await refrescarTodo();
+  toast('Cobrador dado de baja');
+}
+
+async function pagarCuota(cuotaId) {
+  const request = { method: 'POST', body: '{}' };
+  if (state.caja.dia && Number(state.caja.dia.cerrado) === 1) {
+    return apiAdmin(`/api/cuotas/${cuotaId}/pagar`, request, 'Autorizar pago con caja cerrada.');
+  }
+  return api(`/api/cuotas/${cuotaId}/pagar`, request);
 }
 
 async function cargarDashboard() {
@@ -135,7 +398,7 @@ function renderSocios() {
       <td>${socio.nro_socio}</td>
       <td>${socio.apellido}, ${socio.nombre}</td>
       <td>${socio.dni}<br><small>${socio.telefono || ''} ${socio.email || ''}</small></td>
-      <td>${socio.estado}</td>
+      <td>${tipoSocioTexto(socio.estado)}</td>
       <td>${socio.cobrador} - ${socio.cobrador_texto}</td>
       <td>${socio.cuotas_debe}</td>
       <td>${socio.cuotas_adelantadas}</td>
@@ -262,16 +525,22 @@ function renderCuotas(cuotas) {
   }
   box.querySelectorAll('[data-pagar]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      await api(`/api/cuotas/${btn.dataset.pagar}/pagar`, { method: 'POST', body: '{}' });
+      await pagarCuota(btn.dataset.pagar);
       await seleccionarSocio(state.selectedId);
       await cargarSocios();
+      if ($('#paginaCaja') && !$('#paginaCaja').hidden) await cargarCaja();
     });
   });
   box.querySelectorAll('[data-pendiente]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      await api(`/api/cuotas/${btn.dataset.pendiente}/pendiente`, { method: 'POST', body: '{}' });
+      await apiAdmin(
+        `/api/cuotas/${btn.dataset.pendiente}/pendiente`,
+        { method: 'POST', body: '{}' },
+        'Autorizar despago de cuota.'
+      );
       await seleccionarSocio(state.selectedId);
       await cargarSocios();
+      if ($('#paginaCaja') && !$('#paginaCaja').hidden) await cargarCaja();
     });
   });
 }
@@ -307,22 +576,30 @@ function renderTablaCuotas() {
   });
   body.querySelectorAll('[data-pagar-cuota]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      await api(`/api/cuotas/${btn.dataset.pagarCuota}/pagar`, { method: 'POST', body: '{}' });
+      await pagarCuota(btn.dataset.pagarCuota);
       await refrescarTodo();
-      toast('Cuota marcada como pagada');
+      toast('Cuota pagada e ingreso registrado en caja');
     });
   });
   body.querySelectorAll('[data-pendiente-cuota]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      await api(`/api/cuotas/${btn.dataset.pendienteCuota}/pendiente`, { method: 'POST', body: '{}' });
+      await apiAdmin(
+        `/api/cuotas/${btn.dataset.pendienteCuota}/pendiente`,
+        { method: 'POST', body: '{}' },
+        'Autorizar despago de cuota.'
+      );
       await refrescarTodo();
-      toast('Cuota marcada como pendiente');
+      toast('Cuota pendiente e ingreso quitado de caja');
     });
   });
   body.querySelectorAll('[data-delete-cuota]').forEach(btn => {
     btn.addEventListener('click', async () => {
       if (!confirm('Eliminar esta cuota?')) return;
-      await api(`/api/cuotas/${btn.dataset.deleteCuota}`, { method: 'DELETE' });
+      await apiAdmin(
+        `/api/cuotas/${btn.dataset.deleteCuota}`,
+        { method: 'DELETE' },
+        'Autorizar eliminacion de cuota.'
+      );
       await refrescarTodo();
       toast('Cuota eliminada');
     });
@@ -338,6 +615,91 @@ function renderResumenCuotas() {
   $('#cuotasPendientes').textContent = pendientes.length;
   $('#cuotasPagadas').textContent = pagadas.length;
   $('#cuotasMontoPendiente').textContent = `$${montoPendiente.toFixed(2)}`;
+}
+
+async function cargarCaja() {
+  const fecha = $('#formCajaDia') ? $('#formCajaDia').fecha.value || fechaActual() : fechaActual();
+  const data = await api(`/api/caja?fecha=${encodeURIComponent(fecha)}`);
+  state.caja = {
+    dia: data.dia,
+    movimientos: data.movimientos,
+    resumen: data.resumen
+  };
+  renderCaja();
+}
+
+function renderCaja() {
+  const form = $('#formCajaDia');
+  if (!form || !state.caja.dia) return;
+  form.fecha.value = state.caja.dia.fecha;
+  form.saldo_inicial.value = state.caja.dia.saldo_inicial;
+  form.observacion.value = state.caja.dia.observacion || '';
+  form.cerrado.checked = Number(state.caja.dia.cerrado) === 1;
+  $('#cajaSaldoInicial').textContent = money(state.caja.resumen.saldo_inicial);
+  $('#cajaIngresos').textContent = money(state.caja.resumen.ingresos);
+  $('#cajaEgresos').textContent = money(state.caja.resumen.egresos);
+  $('#cajaSaldoFinal').textContent = money(state.caja.resumen.saldo_final);
+  $('#cajaCantidad').textContent = `${state.caja.resumen.cantidad_movimientos} movimiento(s) del dia.`;
+
+  const body = $('#cajaMovimientosBody');
+  body.innerHTML = '';
+  if (!state.caja.movimientos.length) {
+    body.innerHTML = '<tr><td colspan="6">No hay movimientos cargados para esta fecha.</td></tr>';
+    return;
+  }
+  for (const movimiento of state.caja.movimientos) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge ${movimiento.tipo}">${movimiento.tipo}</span></td>
+      <td>${movimiento.concepto}</td>
+      <td>${movimiento.medio_pago}</td>
+      <td>${money(movimiento.monto)}</td>
+      <td>${movimiento.descripcion || '-'}<br><small>${movimiento.referencia || ''}</small></td>
+      <td class="row-actions">
+        <button type="button" class="secondary" data-edit-caja="${movimiento.id}">Editar</button>
+        <button type="button" class="danger" data-delete-caja="${movimiento.id}">Eliminar</button>
+      </td>
+    `;
+    body.appendChild(tr);
+  }
+  body.querySelectorAll('[data-edit-caja]').forEach(btn => {
+    btn.addEventListener('click', () => abrirMovimientoCaja(null, Number(btn.dataset.editCaja)));
+  });
+  body.querySelectorAll('[data-delete-caja]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Eliminar este movimiento de caja?')) return;
+      await apiAdmin(
+        `/api/caja/movimientos/${btn.dataset.deleteCaja}`,
+        { method: 'DELETE' },
+        'Autorizar eliminacion de movimiento de caja.'
+      );
+      await cargarCaja();
+      toast('Movimiento eliminado');
+    });
+  });
+}
+
+function abrirMovimientoCaja(tipo, id = null) {
+  const form = $('#formCajaMovimiento');
+  form.reset();
+  form.id.value = '';
+  form.fecha.value = $('#formCajaDia').fecha.value || fechaActual();
+  form.tipo.value = tipo || 'ingreso';
+  $('#cajaMovimientoTitulo').textContent = tipo === 'egreso' ? 'Nuevo egreso' : 'Nuevo ingreso';
+  if (id) {
+    const movimiento = state.caja.movimientos.find(item => item.id === id);
+    if (!movimiento) return;
+    form.id.value = movimiento.id;
+    form.fecha.value = movimiento.fecha;
+    form.tipo.value = movimiento.tipo;
+    form.concepto.value = movimiento.concepto;
+    form.monto.value = movimiento.monto;
+    form.medio_pago.value = movimiento.medio_pago;
+    form.descripcion.value = movimiento.descripcion || '';
+    form.referencia.value = movimiento.referencia || '';
+    $('#cajaMovimientoTitulo').textContent = `Editar ${movimiento.tipo}`;
+  }
+  abrir($('#modalCajaMovimiento'));
 }
 
 function abrirEditorCuota(id) {
@@ -357,6 +719,9 @@ async function refrescarTodo() {
   await cargarDashboard();
   await cargarSocios();
   await cargarCuotas();
+  if ($('#paginaCaja') && !$('#paginaCaja').hidden) {
+    await cargarCaja();
+  }
   if (state.selectedId && $('#detalle')) {
     await seleccionarSocio(state.selectedId);
   }
@@ -370,6 +735,8 @@ function mostrarPaginaSocios() {
   $('#paginaInicio').hidden = true;
   $('#paginaSocios').hidden = false;
   $('#paginaCuotas').hidden = true;
+  $('#paginaConfig').hidden = true;
+  $('#paginaCaja').hidden = true;
   resetNuevoSocio();
   $('#btnSocioBajaCrud').disabled = true;
   $('#btnSocioEditarCrud').disabled = true;
@@ -384,19 +751,43 @@ function mostrarPaginaCuotas() {
   $('#paginaInicio').hidden = true;
   $('#paginaSocios').hidden = true;
   $('#paginaCuotas').hidden = false;
+  $('#paginaConfig').hidden = true;
+  $('#paginaCaja').hidden = true;
   cargarCuotas();
 }
 
 function mostrarPaginaInicio() {
   $('#paginaSocios').hidden = true;
   $('#paginaCuotas').hidden = true;
+  $('#paginaConfig').hidden = true;
+  $('#paginaCaja').hidden = true;
   $('#paginaInicio').hidden = false;
   resetNuevoSocio();
 }
 
+function mostrarPaginaConfig() {
+  $('#paginaInicio').hidden = true;
+  $('#paginaSocios').hidden = true;
+  $('#paginaCuotas').hidden = true;
+  $('#paginaConfig').hidden = false;
+  $('#paginaCaja').hidden = true;
+  cargarConfig();
+}
+
+function mostrarPaginaCaja() {
+  $('#paginaInicio').hidden = true;
+  $('#paginaSocios').hidden = true;
+  $('#paginaCuotas').hidden = true;
+  $('#paginaConfig').hidden = true;
+  $('#paginaCaja').hidden = false;
+  if (!$('#formCajaDia').fecha.value) $('#formCajaDia').fecha.value = fechaActual();
+  cargarCaja();
+}
+
 function imprimirCuotas(cobrador) {
   const periodo = $('#formFiltroCuotas').periodo.value || $('#formImprimir').periodo.value || periodoSiguiente();
-  window.open(`/imprimir?periodo=${encodeURIComponent(periodo)}&cobrador=${cobrador}`, '_blank');
+  const cobradorFinal = cobrador || state.config.impresion_cobrador_default || 1;
+  window.open(`/imprimir?periodo=${encodeURIComponent(periodo)}&cobrador=${cobradorFinal}`, '_blank');
 }
 
 function cerrarDialogs() {
@@ -404,11 +795,15 @@ function cerrarDialogs() {
 }
 
 async function init() {
-  $('#formDashboard').periodo.value = periodoSiguiente();
-  $('#formGenerar').periodo.value = periodoSiguiente();
-  $('#formImprimir').periodo.value = periodoSiguiente();
-  if ($('#formCuota')) $('#formCuota').periodo.value = periodoSiguiente();
-  $('#formFiltroCuotas').periodo.value = periodoSiguiente();
+  await cargarConfig();
+  const periodo = periodoDefault();
+  $('#formDashboard').periodo.value = periodo;
+  $('#formGenerar').periodo.value = periodo;
+  $('#formImprimir').periodo.value = periodo;
+  $('#formImprimir').cobrador.value = state.config.impresion_cobrador_default || '1';
+  if ($('#formCuota')) $('#formCuota').periodo.value = periodo;
+  $('#formFiltroCuotas').periodo.value = periodo;
+  $('#formCajaDia').fecha.value = fechaActual();
 
   if ($('#btnBuscar')) $('#btnBuscar').addEventListener('click', cargarSocios);
   if ($('#buscar')) {
@@ -427,9 +822,15 @@ async function init() {
     mostrarPaginaSocios();
   });
   $('#btnCuotas').addEventListener('click', mostrarPaginaCuotas);
+  $('#btnCaja').addEventListener('click', mostrarPaginaCaja);
   $('#btnVolverInicio').addEventListener('click', mostrarPaginaInicio);
   $('#btnVolverInicioCuotas').addEventListener('click', mostrarPaginaInicio);
-  $('#btnConfig').addEventListener('click', () => abrir($('#modalConfig')));
+  $('#btnCajaVolver').addEventListener('click', mostrarPaginaInicio);
+  $('#btnVolverInicioConfig').addEventListener('click', mostrarPaginaInicio);
+  $('#btnConfigCancelar').addEventListener('click', mostrarPaginaInicio);
+  $('#btnConfig').addEventListener('click', mostrarPaginaConfig);
+  $('#btnTipoSocioNuevo').addEventListener('click', limpiarTipoSocio);
+  $('#btnCobradorNuevo').addEventListener('click', limpiarCobrador);
   document.querySelectorAll('[data-close]').forEach(btn => btn.addEventListener('click', cerrarDialogs));
   $('#btnBuscarSocioCrud').addEventListener('click', cargarSociosCrud);
   $('#buscarSocioCrud').addEventListener('keydown', (event) => {
@@ -438,6 +839,24 @@ async function init() {
   $('#btnSocioNuevoModo').addEventListener('click', () => abrirModalSocio());
   $('#btnSocioEditarCrud').addEventListener('click', () => {
     if (state.socioCrudId) abrirModalSocio(state.socioCrudId);
+  });
+  $('#btnCajaIngreso').addEventListener('click', () => abrirMovimientoCaja('ingreso'));
+  $('#btnCajaEgreso').addEventListener('click', () => abrirMovimientoCaja('egreso'));
+  $('#btnCajaActualizar').addEventListener('click', cargarCaja);
+  $('#formCajaDia').fecha.addEventListener('change', cargarCaja);
+  $('#formAdminClave').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const clave = event.currentTarget.clave.value;
+    cerrarDialogs();
+    if (adminKeyResolve) adminKeyResolve(clave);
+    adminKeyResolve = null;
+    adminKeyReject = null;
+  });
+  $('#btnAdminCancelar').addEventListener('click', () => {
+    cerrarDialogs();
+    if (adminKeyResolve) adminKeyResolve('');
+    adminKeyResolve = null;
+    adminKeyReject = null;
   });
 
   $('#formNuevo').addEventListener('submit', async (event) => {
@@ -463,7 +882,11 @@ async function init() {
   $('#btnSocioBajaCrud').addEventListener('click', async () => {
     if (!state.socioCrudId) return;
     if (!confirm('Dar de baja este socio? Se eliminaran sus cuotas y el numero quedara libre.')) return;
-    const result = await api(`/api/socios/${state.socioCrudId}`, { method: 'DELETE' });
+    const result = await apiAdmin(
+      `/api/socios/${state.socioCrudId}`,
+      { method: 'DELETE' },
+      'Autorizar baja de socio.'
+    );
     if (state.selectedId === state.socioCrudId && $('#detalle')) {
       state.selectedId = null;
       $('#detalle').hidden = true;
@@ -490,7 +913,7 @@ async function init() {
     $('#btnBaja').addEventListener('click', async () => {
       if (!state.selectedId) return;
       if (!confirm('Dar de baja este socio? Se eliminaran sus cuotas y el numero quedara libre.')) return;
-      const result = await api(`/api/socios/${state.selectedId}`, { method: 'DELETE' });
+      const result = await apiAdmin(`/api/socios/${state.selectedId}`, { method: 'DELETE' }, 'Autorizar baja de socio.');
       state.selectedId = null;
       $('#detalle').hidden = true;
       $('#detalleVacio').hidden = false;
@@ -525,15 +948,126 @@ async function init() {
     window.open(`/imprimir?periodo=${encodeURIComponent(data.periodo)}&cobrador=${data.cobrador}`, '_blank');
   });
 
-  $('#btnPrintCobrador').addEventListener('click', () => imprimirCuotas(1));
+  $('#btnPrintCobrador').addEventListener('click', () => imprimirCuotas());
   $('#btnPrintBiblioteca').addEventListener('click', () => imprimirCuotas(3));
 
   $('#formConfig').addEventListener('submit', async (event) => {
     event.preventDefault();
-    await api('/api/config', { method: 'POST', body: JSON.stringify(formData(event.currentTarget)) });
+    await apiAdmin(
+      '/api/config',
+      { method: 'POST', body: JSON.stringify(formData(event.currentTarget)) },
+      'Autorizar cambio de configuracion.'
+    );
     await cargarConfig();
+    await refrescarTodo();
+    toast('Predeterminados guardados');
+  });
+
+  $('#formCajaDia').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    data.cerrado = event.currentTarget.cerrado.checked ? '1' : '0';
+    const request = { method: 'POST', body: JSON.stringify(data) };
+    if (state.caja.dia && Number(state.caja.dia.cerrado) === 1) {
+      await apiAdmin('/api/caja/dia', request, 'Autorizar modificacion de caja cerrada.');
+    } else {
+      await api('/api/caja/dia', request);
+    }
+    await cargarCaja();
+    toast('Caja diaria guardada');
+  });
+
+  $('#formSeguridad').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    if (data.clave_nueva !== data.clave_repetida) {
+      toast('La nueva clave no coincide');
+      return;
+    }
+    await api('/api/config/seguridad', { method: 'POST', body: JSON.stringify(data) });
+    event.currentTarget.reset();
+    await cargarConfig();
+    toast('Clave de administrador actualizada');
+  });
+
+  $('#formCajaMovimiento').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    const id = data.id;
+    delete data.id;
+    if (id) {
+      await apiAdmin(
+        `/api/caja/movimientos/${id}`,
+        { method: 'PUT', body: JSON.stringify(data) },
+        'Autorizar edicion de movimiento de caja.'
+      );
+      toast('Movimiento actualizado');
+    } else {
+      const closed = state.caja.dia && Number(state.caja.dia.cerrado) === 1;
+      const request = { method: 'POST', body: JSON.stringify(data) };
+      if (closed) {
+        await apiAdmin('/api/caja/movimientos', request, 'Autorizar movimiento en caja cerrada.');
+      } else {
+        await api('/api/caja/movimientos', request);
+      }
+      toast('Movimiento cargado');
+    }
     cerrarDialogs();
-    toast('Importes guardados');
+    await cargarCaja();
+  });
+
+  $('#formTipoSocio').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    data.activo = event.currentTarget.activo.checked ? '1' : '0';
+    const id = data.id;
+    delete data.id;
+    if (id) {
+      await apiAdmin(
+        `/api/config/tipos-socio/${encodeURIComponent(id)}`,
+        { method: 'PUT', body: JSON.stringify(data) },
+        'Autorizar edicion de tipo de socio.'
+      );
+      toast('Tipo de socio actualizado');
+    } else {
+      await apiAdmin(
+        '/api/config/tipos-socio',
+        { method: 'POST', body: JSON.stringify(data) },
+        'Autorizar alta de tipo de socio.'
+      );
+      toast('Tipo de socio creado');
+    }
+    cerrarDialogs();
+    $('#formTipoSocio').reset();
+    await cargarConfig();
+    await refrescarTodo();
+  });
+
+  $('#formCobrador').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    data.activo = event.currentTarget.activo.checked ? '1' : '0';
+    const id = data.id;
+    delete data.id;
+    if (id) {
+      await apiAdmin(
+        `/api/config/cobradores/${id}`,
+        { method: 'PUT', body: JSON.stringify(data) },
+        'Autorizar edicion de cobrador.'
+      );
+      toast('Cobrador actualizado');
+    } else {
+      await apiAdmin(
+        '/api/config/cobradores',
+        { method: 'POST', body: JSON.stringify(data) },
+        'Autorizar alta de cobrador.'
+      );
+      toast('Cobrador creado');
+    }
+    cerrarDialogs();
+    $('#formCobrador').reset();
+    await cargarConfig();
+    await refrescarTodo();
   });
 
   $('#btnRecargarCuotas').addEventListener('click', cargarCuotas);
@@ -548,16 +1082,20 @@ async function init() {
     const data = formData(event.currentTarget);
     const id = data.id;
     delete data.id;
-    await api(`/api/cuotas/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    await apiAdmin(
+      `/api/cuotas/${id}`,
+      { method: 'PUT', body: JSON.stringify(data) },
+      'Autorizar modificacion de cuota.'
+    );
     cerrarDialogs();
     await refrescarTodo();
-    toast('Cuota modificada');
+    toast(data.estado === 'pagada' ? 'Cuota modificada e ingreso registrado en caja' : 'Cuota modificada sin ingreso en caja');
   });
 
-  await cargarConfig();
   await cargarDashboard();
   await cargarSocios();
   await cargarCuotas();
+  await cargarCaja();
 }
 
 init().catch(error => toast(error.message));

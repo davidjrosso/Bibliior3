@@ -13,10 +13,11 @@
       <p>Socios, cuotas, pagos e impresion local</p>
     </div>
     <div class="actions">
-      <button id="btnInicio">Inicio</button>
-      <button id="btnNuevo">Socio</button>
-      <button id="btnCuotas">Cuotas</button>
-      <button id="btnConfig">Importes</button>
+      <button id="btnInicio" type="button">Inicio</button>
+      <button id="btnNuevo" type="button">Socio</button>
+      <button id="btnCuotas" type="button">Cuotas</button>
+      <button id="btnCaja" type="button">Caja</button>
+      <button id="btnConfig" type="button">Configuracion</button>
     </div>
   </header>
 
@@ -195,6 +196,160 @@
     </div>
   </section>
 
+  <section id="paginaConfig" class="page" hidden>
+    <section class="panel config-page">
+      <div class="section-head">
+        <div>
+          <h2>Configuracion</h2>
+          <p>Valores generales para cuotas, socios, cobradores e impresion.</p>
+        </div>
+        <button type="button" id="btnVolverInicioConfig" class="secondary">Volver</button>
+      </div>
+      <form id="formConfig" class="config-form">
+        <section>
+          <h3>Valores predeterminados</h3>
+          <div class="config-grid">
+            <label>Periodo por defecto
+              <select name="periodo_default">
+                <option value="siguiente">Mes siguiente</option>
+                <option value="actual">Mes actual</option>
+              </select>
+            </label>
+            <label>Cobrador para impresion
+              <select name="impresion_cobrador_default">
+                <option value="1">1 - Cobrador</option>
+                <option value="3">3 - Biblioteca</option>
+              </select>
+            </label>
+            <label>Estado nuevo socio
+              <select name="socio_estado_default">
+                <option value="activo">Activo</option>
+                <option value="jubilado">Jubilado</option>
+              </select>
+            </label>
+            <label>Cobrador nuevo socio
+              <select name="socio_cobrador_default">
+                <option value="1">1 - Cobrador</option>
+                <option value="3">3 - Biblioteca</option>
+              </select>
+            </label>
+          </div>
+        </section>
+        <div class="form-actions">
+          <button type="button" id="btnConfigCancelar" class="secondary">Cancelar</button>
+          <button>Guardar predeterminados</button>
+        </div>
+      </form>
+      <div class="config-crud-grid">
+        <section class="config-crud">
+          <div class="section-head">
+            <div>
+              <h3>Tipos / estados de socio</h3>
+              <p>Cada tipo define el estado del socio y el valor de su cuota.</p>
+            </div>
+            <button type="button" id="btnTipoSocioNuevo">Nuevo tipo</button>
+          </div>
+          <div id="tiposSocioBody" class="config-card-list"></div>
+        </section>
+        <section class="config-crud">
+          <div class="section-head">
+            <div>
+              <h3>Cobradores</h3>
+              <p>Administre cobradores para socios, filtros e impresion.</p>
+            </div>
+            <button type="button" id="btnCobradorNuevo">Nuevo cobrador</button>
+          </div>
+          <div id="cobradoresBody" class="config-card-list"></div>
+        </section>
+      </div>
+      <div class="config-crud-grid">
+        <section class="config-crud">
+          <div class="section-head">
+            <div>
+              <h3>Seguridad</h3>
+              <p>Cambie la clave usada para acciones delicadas.</p>
+            </div>
+          </div>
+          <form id="formSeguridad" class="config-form">
+            <div class="config-grid">
+              <label>Clave actual<input name="clave_actual" type="password" required></label>
+              <label>Nueva clave<input name="clave_nueva" type="password" minlength="4" required></label>
+              <label>Repetir nueva clave<input name="clave_repetida" type="password" minlength="4" required></label>
+            </div>
+            <div class="form-actions">
+              <button>Cambiar clave</button>
+            </div>
+          </form>
+        </section>
+        <section class="config-crud">
+          <div class="section-head">
+            <div>
+              <h3>Auditoria</h3>
+              <p>Ultimas acciones protegidas realizadas.</p>
+            </div>
+          </div>
+          <div id="auditoriaBody" class="audit-list"></div>
+        </section>
+      </div>
+    </section>
+  </section>
+
+  <section id="paginaCaja" class="page" hidden>
+    <section class="panel caja-page">
+      <div class="section-head">
+        <div>
+          <h2>Caja diaria</h2>
+          <p>Ingresos, egresos y saldo del dia.</p>
+        </div>
+        <div class="row-actions">
+          <button type="button" id="btnCajaVolver" class="secondary">Volver</button>
+          <button type="button" id="btnCajaIngreso">Ingreso</button>
+          <button type="button" id="btnCajaEgreso" class="danger">Egreso</button>
+        </div>
+      </div>
+
+      <form id="formCajaDia" class="caja-day-form">
+        <label>Fecha<input name="fecha" type="date" required></label>
+        <label>Saldo inicial<input name="saldo_inicial" type="number" step="0.01" required></label>
+        <label class="wide">Observacion<input name="observacion" placeholder="Detalle del dia, arqueo, aclaraciones"></label>
+        <label class="check-label"><input name="cerrado" type="checkbox"> Caja cerrada</label>
+        <button>Guardar dia</button>
+      </form>
+
+      <div class="summary-grid caja-summary">
+        <div><strong id="cajaSaldoInicial">$0.00</strong><span>Saldo inicial</span></div>
+        <div><strong id="cajaIngresos">$0.00</strong><span>Ingresos</span></div>
+        <div><strong id="cajaEgresos">$0.00</strong><span>Egresos</span></div>
+        <div><strong id="cajaSaldoFinal">$0.00</strong><span>Saldo final</span></div>
+      </div>
+
+      <section class="caja-list">
+        <div class="section-head">
+          <div>
+            <h3>Movimientos</h3>
+            <p id="cajaCantidad">Sin movimientos.</p>
+          </div>
+          <button type="button" id="btnCajaActualizar" class="secondary">Actualizar</button>
+        </div>
+        <div class="table-wrap caja-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Concepto</th>
+                <th>Medio</th>
+                <th>Monto</th>
+                <th>Detalle</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cajaMovimientosBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </section>
+
   <dialog id="modalSocioForm">
     <form id="formNuevo" class="grid-form modal-form socio-form-modal">
       <h2 id="socioFormTitulo">Nuevo socio</h2>
@@ -233,18 +388,6 @@
     </form>
   </dialog>
 
-  <dialog id="modalConfig">
-    <form id="formConfig" class="modal-form">
-      <h2>Importes de cuota</h2>
-      <label>Activo<input name="monto_activo" type="number" step="0.01" required></label>
-      <label>Jubilado<input name="monto_jubilado" type="number" step="0.01" required></label>
-      <div class="dialog-actions">
-        <button type="button" data-close>Cancelar</button>
-        <button>Guardar</button>
-      </div>
-    </form>
-  </dialog>
-
   <dialog id="modalCuota">
     <form id="formEditarCuota" class="grid-form modal-form">
       <h2>Modificar cuota</h2>
@@ -266,7 +409,80 @@
     </form>
   </dialog>
 
+  <dialog id="modalTipoSocio">
+    <form id="formTipoSocio" class="modal-form config-modal-form">
+      <h2 id="tipoSocioTitulo">Nuevo tipo de socio</h2>
+      <input name="id" type="hidden">
+      <label>Nombre<input name="nombre" required></label>
+      <label>Valor de cuota<input name="monto" type="number" step="0.01" min="0" required></label>
+      <label class="check-label"><input name="activo" type="checkbox" checked> Activo</label>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancelar</button>
+        <button>Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalCobrador">
+    <form id="formCobrador" class="modal-form config-modal-form">
+      <h2 id="cobradorTitulo">Nuevo cobrador</h2>
+      <input name="id" type="hidden">
+      <label>Nombre<input name="nombre" required></label>
+      <label class="check-label"><input name="activo" type="checkbox" checked> Activo</label>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancelar</button>
+        <button>Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalCajaMovimiento">
+    <form id="formCajaMovimiento" class="grid-form modal-form">
+      <h2 id="cajaMovimientoTitulo">Movimiento de caja</h2>
+      <input name="id" type="hidden">
+      <input name="tipo" type="hidden">
+      <label>Fecha<input name="fecha" type="date" required></label>
+      <label>Monto<input name="monto" type="number" step="0.01" min="0.01" required></label>
+      <label>Concepto<input name="concepto" list="conceptosCaja" required></label>
+      <label>Medio de pago
+        <select name="medio_pago">
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="cheque">Cheque</option>
+          <option value="otro">Otro</option>
+        </select>
+      </label>
+      <label class="wide">Descripcion<input name="descripcion" placeholder="Detalle opcional"></label>
+      <label class="wide">Referencia<input name="referencia" placeholder="Comprobante, recibo, socio, etc."></label>
+      <datalist id="conceptosCaja">
+        <option value="Cobro de cuotas"></option>
+        <option value="Donacion"></option>
+        <option value="Venta"></option>
+        <option value="Compra de insumos"></option>
+        <option value="Gasto operativo"></option>
+        <option value="Retiro de caja"></option>
+      </datalist>
+      <div class="dialog-actions">
+        <button type="button" data-close>Cancelar</button>
+        <button>Guardar movimiento</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalAdminClave">
+    <form id="formAdminClave" class="modal-form config-modal-form">
+      <h2>Clave de administrador</h2>
+      <p id="adminClaveMotivo" class="muted-note">Esta accion requiere permiso.</p>
+      <label>Clave<input name="clave" type="password" autocomplete="current-password" required></label>
+      <div class="dialog-actions">
+        <button type="button" id="btnAdminCancelar">Cancelar</button>
+        <button>Autorizar</button>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=20260703-seguridad-fix"></script>
 </body>
 </html>

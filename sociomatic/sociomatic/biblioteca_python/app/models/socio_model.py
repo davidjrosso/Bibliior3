@@ -1,5 +1,5 @@
 from app.models.helpers import current_period, now_iso, row_to_dict, today_iso
-from app.settings import COBRADORES
+from app.models import config_model
 
 
 def validate_socio(data: dict, editing: bool = False) -> dict:
@@ -32,9 +32,9 @@ def validate_socio(data: dict, editing: bool = False) -> dict:
         "estado": str(data.get("estado", "activo")).strip(),
         "cobrador": int(data.get("cobrador", 1)),
     }
-    if clean["estado"] not in {"activo", "jubilado"}:
+    if clean["estado"] == "":
         raise ValueError("Estado invalido.")
-    if clean["cobrador"] not in COBRADORES:
+    if clean["cobrador"] < 1:
         raise ValueError("Cobrador invalido.")
     return clean
 
@@ -66,7 +66,7 @@ def socio_con_resumen(conn, socio_id: int) -> dict | None:
     ).fetchone()
     socio["cuotas_debe"] = int(resumen["cuotas_debe"] or 0)
     socio["cuotas_adelantadas"] = int(resumen["cuotas_adelantadas"] or 0)
-    socio["cobrador_texto"] = COBRADORES.get(socio["cobrador"], "")
+    socio["cobrador_texto"] = config_model.cobrador_nombre(conn, socio["cobrador"])
     return socio
 
 
@@ -177,6 +177,13 @@ def baja(conn, socio_id: int) -> int:
     conn.execute(
         "UPDATE socios SET fecha_baja = ?, actualizado_en = ? WHERE id = ?",
         (today_iso(), now_iso(), socio_id),
+    )
+    conn.execute(
+        """
+        DELETE FROM caja_movimientos
+        WHERE cuota_id IN (SELECT id FROM cuotas WHERE socio_id = ?)
+        """,
+        (socio_id,),
     )
     conn.execute("DELETE FROM cuotas WHERE socio_id = ?", (socio_id,))
     return socio["nro_socio"]

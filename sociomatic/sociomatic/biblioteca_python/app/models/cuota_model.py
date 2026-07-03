@@ -1,4 +1,4 @@
-from app.models import config_model, socio_model
+from app.models import caja_model, config_model, socio_model
 from app.models.helpers import next_period, now_iso, today_iso, valid_period
 from app.settings import COBRADORES
 
@@ -86,7 +86,7 @@ def listar(conn, query: dict) -> list[dict]:
     for row in rows:
         cuota = dict(row)
         cuota["socio"] = f"{row['apellido']}, {row['nombre']}"
-        cuota["cobrador_texto"] = COBRADORES.get(row["cobrador"], "")
+        cuota["cobrador_texto"] = config_model.cobrador_nombre(conn, row["cobrador"])
         cuotas.append(cuota)
     return cuotas
 
@@ -116,26 +116,37 @@ def actualizar(conn, cuota_id: int, data: dict) -> None:
     )
     if cursor.rowcount == 0:
         raise LookupError("Cuota no encontrada")
+    if estado == "pagada":
+        caja_model.registrar_cobro_cuota(conn, cuota_id)
+    else:
+        caja_model.eliminar_cobro_cuota(conn, cuota_id)
 
 
 def eliminar(conn, cuota_id: int) -> None:
+    caja_model.eliminar_cobro_cuota(conn, cuota_id)
     cursor = conn.execute("DELETE FROM cuotas WHERE id = ?", (cuota_id,))
     if cursor.rowcount == 0:
         raise LookupError("Cuota no encontrada")
 
 
 def marcar_pagada(conn, cuota_id: int) -> None:
-    conn.execute(
+    cursor = conn.execute(
         "UPDATE cuotas SET estado = 'pagada', fecha_pago = ?, actualizado_en = ? WHERE id = ?",
         (today_iso(), now_iso(), cuota_id),
     )
+    if cursor.rowcount == 0:
+        raise LookupError("Cuota no encontrada")
+    caja_model.registrar_cobro_cuota(conn, cuota_id)
 
 
 def marcar_pendiente(conn, cuota_id: int) -> None:
-    conn.execute(
+    cursor = conn.execute(
         "UPDATE cuotas SET estado = 'pendiente', fecha_pago = NULL, actualizado_en = ? WHERE id = ?",
         (now_iso(), cuota_id),
     )
+    if cursor.rowcount == 0:
+        raise LookupError("Cuota no encontrada")
+    caja_model.eliminar_cobro_cuota(conn, cuota_id)
 
 
 def cuotas_para_imprimir(conn, periodo: str, cobrador: int):

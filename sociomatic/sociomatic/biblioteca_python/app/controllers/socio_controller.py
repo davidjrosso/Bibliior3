@@ -1,8 +1,7 @@
 from http import HTTPStatus
 
 from app.controllers.base_controller import json_response, read_json
-from app.models import socio_model
-from app.settings import COBRADORES
+from app.models import config_model, security_model, socio_model
 
 
 def index(handler, conn, query):
@@ -14,7 +13,8 @@ def index(handler, conn, query):
             "exito": True,
             "socios": socio_model.listar(conn, busqueda, incluir_bajas),
             "proximo_nro_socio": socio_model.proximo_nro_socio(conn),
-            "cobradores": COBRADORES,
+            "cobradores": config_model.listar_cobradores(conn),
+            "tipos_socio": config_model.listar_tipos_socio(conn),
         },
     )
 
@@ -45,6 +45,6 @@ def update(handler, conn, _query, socio_id: int):
 
 
 def delete(handler, conn, _query, socio_id: int):
+    security_model.require_admin(handler, conn, "socio.baja", f"Socio {socio_id}")
     nro_liberado = socio_model.baja(conn, socio_id)
     json_response(handler, {"exito": True, "nro_liberado": nro_liberado})
-

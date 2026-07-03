@@ -3,7 +3,7 @@ import re
 import sqlite3
 from http import HTTPStatus
 
-from app.controllers import config_controller, cuota_controller, dashboard_controller, print_controller, socio_controller
+from app.controllers import caja_controller, config_controller, cuota_controller, dashboard_controller, print_controller, socio_controller
 from app.controllers.base_controller import json_response
 from app.models.database import get_db
 
@@ -17,9 +17,58 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
             if path == "/api/config" and method == "POST":
                 config_controller.update(handler, conn, query)
                 return
+            if path == "/api/config/seguridad" and method == "POST":
+                config_controller.update_security(handler, conn, query)
+                return
+            if path == "/api/config/tipos-socio" and method == "POST":
+                config_controller.create_tipo_socio(handler, conn, query)
+                return
+            tipo_match = re.fullmatch(r"/api/config/tipos-socio/([A-Za-z0-9_-]+)", path)
+            if tipo_match:
+                tipo_id = tipo_match.group(1)
+                if method == "PUT":
+                    config_controller.update_tipo_socio(handler, conn, query, tipo_id)
+                elif method == "DELETE":
+                    config_controller.delete_tipo_socio(handler, conn, query, tipo_id)
+                else:
+                    json_response(handler, {"error": "Metodo no permitido"}, HTTPStatus.METHOD_NOT_ALLOWED)
+                return
+            if path == "/api/config/cobradores" and method == "POST":
+                config_controller.create_cobrador(handler, conn, query)
+                return
+            cobrador_match = re.fullmatch(r"/api/config/cobradores/(\d+)", path)
+            if cobrador_match:
+                cobrador_id = int(cobrador_match.group(1))
+                if method == "PUT":
+                    config_controller.update_cobrador(handler, conn, query, cobrador_id)
+                elif method == "DELETE":
+                    config_controller.delete_cobrador(handler, conn, query, cobrador_id)
+                else:
+                    json_response(handler, {"error": "Metodo no permitido"}, HTTPStatus.METHOD_NOT_ALLOWED)
+                return
 
             if path == "/api/dashboard" and method == "GET":
                 dashboard_controller.get(handler, conn, query)
+                return
+
+            if path == "/api/caja" and method == "GET":
+                caja_controller.get(handler, conn, query)
+                return
+            if path == "/api/caja/dia" and method == "POST":
+                caja_controller.update_day(handler, conn, query)
+                return
+            if path == "/api/caja/movimientos" and method == "POST":
+                caja_controller.create_movement(handler, conn, query)
+                return
+            caja_match = re.fullmatch(r"/api/caja/movimientos/(\d+)", path)
+            if caja_match:
+                movimiento_id = int(caja_match.group(1))
+                if method == "PUT":
+                    caja_controller.update_movement(handler, conn, query, movimiento_id)
+                elif method == "DELETE":
+                    caja_controller.delete_movement(handler, conn, query, movimiento_id)
+                else:
+                    json_response(handler, {"error": "Metodo no permitido"}, HTTPStatus.METHOD_NOT_ALLOWED)
                 return
 
             if path == "/api/socios" and method == "GET":
@@ -74,6 +123,8 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
         json_response(handler, {"exito": False, "error": str(exc)}, HTTPStatus.NOT_FOUND)
     except ValueError as exc:
         json_response(handler, {"exito": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
+    except PermissionError as exc:
+        json_response(handler, {"exito": False, "error": str(exc)}, HTTPStatus.FORBIDDEN)
     except sqlite3.IntegrityError as exc:
         message = str(exc)
         if "socios.nro_socio" in message:
