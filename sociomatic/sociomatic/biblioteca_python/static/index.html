@@ -7,7 +7,18 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="topbar">
+  <section id="loginScreen" class="login-screen">
+    <form id="formLogin" class="login-card">
+      <h1>Sistema Biblioteca</h1>
+      <p>Ingrese con su usuario para continuar.</p>
+      <label>Usuario<input name="usuario" autocomplete="username" required autofocus></label>
+      <label>Contrasena<input name="clave" type="password" autocomplete="current-password" required></label>
+      <button>Entrar</button>
+      <small>Usuario inicial: admin / clave inicial: 1234</small>
+    </form>
+  </section>
+
+  <header id="appTopbar" class="topbar" hidden>
     <div>
       <h1>Sistema Biblioteca</h1>
       <p>Socios, cuotas, pagos e impresion local</p>
@@ -18,10 +29,11 @@
       <button id="btnCuotas" type="button">Cuotas</button>
       <button id="btnCaja" type="button">Caja</button>
       <button id="btnConfig" type="button">Configuracion</button>
+      <button id="btnLogout" type="button" class="secondary">Salir</button>
     </div>
   </header>
 
-  <div id="paginaInicio">
+  <div id="paginaInicio" hidden>
     <section class="panel dashboard">
       <div class="section-head">
         <div>
@@ -308,6 +320,17 @@
             </div>
             <div class="form-actions">
               <button>Cambiar clave</button>
+            </div>
+          </form>
+          <hr class="soft-separator">
+          <form id="formAcceso" class="config-form">
+            <div class="config-grid">
+              <label>Usuario de ingreso<input name="usuario" autocomplete="username" minlength="3" required></label>
+              <label>Nueva contrasena<input name="clave_nueva" type="password" autocomplete="new-password" minlength="4" required></label>
+              <label>Repetir contrasena<input name="clave_repetida" type="password" autocomplete="new-password" minlength="4" required></label>
+            </div>
+            <div class="form-actions">
+              <button>Cambiar acceso</button>
             </div>
           </form>
         </section>

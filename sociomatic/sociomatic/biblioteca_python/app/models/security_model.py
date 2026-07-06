@@ -1,12 +1,18 @@
 import hashlib
 import hmac
 import secrets
+import time
+from http import cookies
 
 from app.models.helpers import now_iso
 
 
 DEFAULT_ADMIN_KEY = "1234"
+DEFAULT_LOGIN_USER = "admin"
+DEFAULT_LOGIN_PASSWORD = "1234"
 ITERATIONS = 120_000
+SESSION_COOKIE = "biblioteca_session"
+SESSION_TTL_SECONDS = 8 * 60 * 60
 
 
 def _hash_key(key: str, salt: str) -> str:
@@ -24,6 +30,116 @@ def ensure_default_admin_key(conn) -> None:
         "INSERT INTO configuracion (clave, valor) VALUES ('admin_key_hash', ?)",
         (_hash_key(DEFAULT_ADMIN_KEY, salt),),
     )
+
+
+def ensure_default_login(conn) -> None:
+    user = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_user'").fetchone()
+    password_hash = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_password_hash'").fetchone()
+    secret = conn.execute("SELECT valor FROM configuracion WHERE clave = 'session_secret'").fetchone()
+    if not user:
+        conn.execute("INSERT INTO configuracion (clave, valor) VALUES ('login_user', ?)", (DEFAULT_LOGIN_USER,))
+    if not password_hash:
+        salt = secrets.token_hex(16)
+        conn.execute("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('login_password_salt', ?)", (salt,))
+        conn.execute(
+            "INSERT INTO configuracion (clave, valor) VALUES ('login_password_hash', ?)",
+            (_hash_key(DEFAULT_LOGIN_PASSWORD, salt),),
+        )
+    if not secret:
+        conn.execute("INSERT INTO configuracion (clave, valor) VALUES ('session_secret', ?)", (secrets.token_hex(32),))
+
+
+def verify_login(conn, usuario: str, clave: str) -> bool:
+    ensure_default_login(conn)
+    user_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_user'").fetchone()
+    salt_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_password_salt'").fetchone()
+    hash_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_password_hash'").fetchone()
+    if not user_row or not salt_row or not hash_row:
+        return False
+    if not hmac.compare_digest(str(usuario or ""), user_row["valor"]):
+        return False
+    given = _hash_key(str(clave or ""), salt_row["valor"])
+    return hmac.compare_digest(given, hash_row["valor"])
+
+
+def set_login_credentials(conn, usuario: str, clave_nueva: str) -> None:
+    usuario = str(usuario or "").strip()
+    clave_nueva = str(clave_nueva or "").strip()
+    if len(usuario) < 3:
+        raise ValueError("El usuario debe tener al menos 3 caracteres.")
+    if "|" in usuario:
+        raise ValueError("El usuario no puede contener el caracter |.")
+    if len(clave_nueva) < 4:
+        raise ValueError("La contrasena debe tener al menos 4 caracteres.")
+    salt = secrets.token_hex(16)
+    values = {
+        "login_user": usuario,
+        "login_password_salt": salt,
+        "login_password_hash": _hash_key(clave_nueva, salt),
+        "session_secret": secrets.token_hex(32),
+    }
+    for key, value in values.items():
+        conn.execute(
+            "INSERT INTO configuracion (clave, valor) VALUES (?, ?) "
+            "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+            (key, value),
+        )
+
+
+def build_session_cookie(conn, usuario: str) -> str:
+    ensure_default_login(conn)
+    expires = int(time.time()) + SESSION_TTL_SECONDS
+    nonce = secrets.token_urlsafe(16)
+    payload = f"{usuario}|{expires}|{nonce}"
+    token = f"{payload}|{_sign_session(conn, payload)}"
+    return f"{SESSION_COOKIE}={token}; Path=/; Max-Age={SESSION_TTL_SECONDS}; HttpOnly; SameSite=Lax"
+
+
+def clear_session_cookie() -> str:
+    return f"{SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+
+
+def is_authenticated(handler, conn) -> bool:
+    return session_user(handler, conn) is not None
+
+
+def session_user(handler, conn) -> str | None:
+    token = _cookie_value(handler, SESSION_COOKIE)
+    if not token:
+        return None
+    parts = token.split("|")
+    if len(parts) != 4:
+        return None
+    usuario, expires_text, nonce, signature = parts
+    try:
+        expires = int(expires_text)
+    except ValueError:
+        return None
+    if expires < int(time.time()) or not nonce:
+        return None
+    payload = f"{usuario}|{expires}|{nonce}"
+    if not hmac.compare_digest(signature, _sign_session(conn, payload)):
+        return None
+    user_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_user'").fetchone()
+    if not user_row or not hmac.compare_digest(usuario, user_row["valor"]):
+        return None
+    return usuario
+
+
+def _sign_session(conn, payload: str) -> str:
+    ensure_default_login(conn)
+    secret = conn.execute("SELECT valor FROM configuracion WHERE clave = 'session_secret'").fetchone()["valor"]
+    return hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _cookie_value(handler, name: str) -> str:
+    header = handler.headers.get("Cookie", "")
+    jar = cookies.SimpleCookie()
+    try:
+        jar.load(header)
+    except cookies.CookieError:
+        return ""
+    return jar[name].value if name in jar else ""
 
 
 def verify_admin_key(conn, key: str) -> bool:

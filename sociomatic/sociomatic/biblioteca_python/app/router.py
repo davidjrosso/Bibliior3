@@ -3,14 +3,30 @@ import re
 import sqlite3
 from http import HTTPStatus
 
-from app.controllers import caja_controller, config_controller, cuota_controller, dashboard_controller, print_controller, socio_controller
-from app.controllers.base_controller import json_response
+from app.controllers import auth_controller, caja_controller, config_controller, cuota_controller, dashboard_controller, print_controller, socio_controller
+from app.controllers.base_controller import html_response, json_response
 from app.models.database import get_db
+from app.models import security_model
 
 
 def dispatch_api(handler, method: str, path: str, query: dict) -> None:
     try:
         with get_db() as conn:
+            if path == "/api/auth/session" and method == "GET":
+                auth_controller.session(handler, conn, query)
+                return
+            if path == "/api/auth/login" and method == "POST":
+                auth_controller.login(handler, conn, query)
+                return
+            if path == "/api/auth/logout" and method == "POST":
+                auth_controller.logout(handler, conn, query)
+                return
+            if not security_model.is_authenticated(handler, conn):
+                json_response(handler, {"exito": False, "error": "Debe iniciar sesion."}, HTTPStatus.UNAUTHORIZED)
+                return
+            if path == "/api/config/acceso" and method == "POST":
+                auth_controller.update_login(handler, conn, query)
+                return
             if path == "/api/config" and method == "GET":
                 config_controller.get(handler, conn, query)
                 return
@@ -148,9 +164,15 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
 
 def dispatch_print(handler, query: dict) -> None:
     with get_db() as conn:
+        if not security_model.is_authenticated(handler, conn):
+            html_response(handler, "<h1>Debe iniciar sesion.</h1>", HTTPStatus.UNAUTHORIZED)
+            return
         print_controller.print_cuotas(handler, conn, query)
 
 
 def dispatch_print_morosos(handler, query: dict) -> None:
     with get_db() as conn:
+        if not security_model.is_authenticated(handler, conn):
+            html_response(handler, "<h1>Debe iniciar sesion.</h1>", HTTPStatus.UNAUTHORIZED)
+            return
         print_controller.print_morosos(handler, conn, query)

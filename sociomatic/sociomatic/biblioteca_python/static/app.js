@@ -8,6 +8,7 @@ const state = {
   tiposSocio: [],
   cobradores: [],
   auditoria: [],
+  usuario: '',
   caja: {
     dia: null,
     movimientos: [],
@@ -18,6 +19,7 @@ const state = {
 const $ = (selector) => document.querySelector(selector);
 let adminKeyResolve = null;
 let adminKeyReject = null;
+let authEventsBound = false;
 
 function periodoSiguiente() {
   const now = new Date();
@@ -49,10 +51,49 @@ async function api(url, options = {}) {
     }
   });
   const data = await response.json();
+  if (response.status === 401 && !url.startsWith('/api/auth/')) {
+    mostrarLogin();
+  }
   if (!response.ok || data.exito === false) {
     throw new Error(data.error || 'Error de operacion');
   }
   return data;
+}
+
+async function obtenerSesion() {
+  return api('/api/auth/session');
+}
+
+function configurarAcceso() {
+  if (authEventsBound) return;
+  authEventsBound = true;
+  $('#formLogin').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await api('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(formData(event.currentTarget))
+    });
+    window.location.reload();
+  });
+  $('#btnLogout').addEventListener('click', async () => {
+    await api('/api/auth/logout', { method: 'POST', body: '{}' });
+    window.location.reload();
+  });
+}
+
+function mostrarLogin() {
+  $('#loginScreen').hidden = false;
+  $('#appTopbar').hidden = true;
+  ['#paginaInicio', '#paginaSocios', '#paginaCuotas', '#paginaConfig', '#paginaCaja'].forEach(selector => {
+    const el = $(selector);
+    if (el) el.hidden = true;
+  });
+}
+
+function mostrarSistema() {
+  $('#loginScreen').hidden = true;
+  $('#appTopbar').hidden = false;
+  $('#paginaInicio').hidden = false;
 }
 
 function pedirClaveAdmin(motivo) {
@@ -120,6 +161,7 @@ async function cargarConfig() {
   ]) {
     if (form[field]) form[field].value = state.config[field] || '';
   }
+  if ($('#formAcceso').usuario) $('#formAcceso').usuario.value = state.config.login_user || state.usuario || 'admin';
   aplicarConfigUI();
   renderConfigCrud();
   renderAuditoria();
@@ -847,6 +889,14 @@ function cerrarDialogs() {
 }
 
 async function init() {
+  configurarAcceso();
+  const sesion = await obtenerSesion();
+  if (!sesion.autenticado) {
+    mostrarLogin();
+    return;
+  }
+  state.usuario = sesion.usuario || '';
+  mostrarSistema();
   await cargarConfig();
   const periodo = periodoDefault();
   $('#formDashboard').periodo.value = periodo;
@@ -1043,6 +1093,22 @@ async function init() {
     event.currentTarget.reset();
     await cargarConfig();
     toast('Clave de administrador actualizada');
+  });
+
+  $('#formAcceso').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = formData(event.currentTarget);
+    if (data.clave_nueva !== data.clave_repetida) {
+      toast('La nueva contrasena no coincide');
+      return;
+    }
+    await apiAdmin(
+      '/api/config/acceso',
+      { method: 'POST', body: JSON.stringify(data) },
+      'Autorizar cambio de acceso al sistema.'
+    );
+    event.currentTarget.reset();
+    toast('Usuario y contrasena de ingreso actualizados');
   });
 
   $('#formCajaMovimiento').addEventListener('submit', async (event) => {

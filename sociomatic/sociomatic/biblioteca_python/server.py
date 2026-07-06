@@ -2,6 +2,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import os
 from urllib.parse import parse_qs, unquote, urlparse
 
+from app.models.backup_model import backup_diario
 from app.models.database import init_db
 from app.router import dispatch_api, dispatch_print, dispatch_print_morosos
 from app.settings import DB_PATH, STATIC_DIR
@@ -44,11 +45,14 @@ class BibliotecaHandler(SimpleHTTPRequestHandler):
 
 def main() -> None:
     init_db()
+    backup_path = backup_diario()
     port = int(os.environ.get("PORT", "8765"))
     host = os.environ.get("HOST", "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1")
     httpd = ThreadingHTTPServer((host, port), BibliotecaHandler)
     print(f"Sistema Biblioteca listo en http://{host}:{port}")
     print(f"Base SQLite: {DB_PATH}")
+    if backup_path:
+        print(f"Backup diario: {backup_path}")
     httpd.serve_forever()
 
 

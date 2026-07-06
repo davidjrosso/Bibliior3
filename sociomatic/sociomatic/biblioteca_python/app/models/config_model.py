@@ -14,7 +14,14 @@ CONFIG_DEFAULTS = {
 def get_config(conn) -> dict:
     rows = conn.execute("SELECT clave, valor FROM configuracion").fetchall()
     config = CONFIG_DEFAULTS.copy()
-    hidden = {"admin_key_hash", "admin_key_salt", "catalogos_migrados_desde_config"}
+    hidden = {
+        "admin_key_hash",
+        "admin_key_salt",
+        "catalogos_migrados_desde_config",
+        "login_password_hash",
+        "login_password_salt",
+        "session_secret",
+    }
     config.update({row["clave"]: row["valor"] for row in rows if row["clave"] not in hidden})
     tipos = listar_tipos_socio(conn)
     cobradores = listar_cobradores(conn)

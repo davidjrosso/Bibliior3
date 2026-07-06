@@ -5,6 +5,7 @@ __pycache__/
 # Local database and generated data
 sociomatic/sociomatic/biblioteca_python/data/*.sqlite3
 sociomatic/sociomatic/biblioteca_python/data/*.sqlite3-*
+sociomatic/sociomatic/biblioteca_python/data/backups/
 
 # Local editor/system files
 .vscode/

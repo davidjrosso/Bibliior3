@@ -2,6 +2,7 @@ from http import HTTPStatus
 
 from app.controllers.base_controller import json_response, read_json
 from app.models import config_model, security_model, socio_model
+from app.services import socio_service
 
 
 def index(handler, conn, query):
@@ -20,11 +21,11 @@ def index(handler, conn, query):
 
 
 def morosos(handler, conn, _query):
-    json_response(handler, {"exito": True, "morosos": socio_model.listar_morosos(conn)})
+    json_response(handler, {"exito": True, "morosos": socio_service.listar_morosos(conn)})
 
 
 def create(handler, conn, _query):
-    result = socio_model.crear(conn, read_json(handler))
+    result = socio_service.crear(conn, read_json(handler))
     json_response(
         handler,
         {"exito": True, "id": result["id"], "nro_socio": result["nro_socio"]},
@@ -44,11 +45,11 @@ def show(handler, conn, _query, socio_id: int):
 
 
 def update(handler, conn, _query, socio_id: int):
-    socio_model.actualizar(conn, socio_id, read_json(handler))
+    socio_service.actualizar(conn, socio_id, read_json(handler))
     json_response(handler, {"exito": True})
 
 
 def delete(handler, conn, _query, socio_id: int):
     security_model.require_admin(handler, conn, "socio.baja", f"Socio {socio_id}")
-    nro_liberado = socio_model.baja(conn, socio_id)
+    nro_liberado = socio_service.baja(conn, socio_id)
     json_response(handler, {"exito": True, "nro_liberado": nro_liberado})

@@ -127,6 +127,7 @@ def init_db() -> None:
                 WHERE cuota_id IS NOT NULL
             """
         )
+        _crear_indices_consulta(conn)
         _migrar_cobros_cuotas_pagadas(conn)
         from app.models.config_model import CONFIG_DEFAULTS
         from app.models.helpers import now_iso
@@ -155,8 +156,35 @@ def init_db() -> None:
             )
         _migrar_config_vieja_a_catalogos(conn)
         from app.models.security_model import ensure_default_admin_key
+        from app.models.security_model import ensure_default_login
 
         ensure_default_admin_key(conn)
+        ensure_default_login(conn)
+
+
+def _crear_indices_consulta(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS ix_socios_nombre_activo
+            ON socios(apellido COLLATE NOCASE, nombre COLLATE NOCASE)
+            WHERE fecha_baja IS NULL;
+
+        CREATE INDEX IF NOT EXISTS ix_cuotas_periodo_estado
+            ON cuotas(periodo, estado);
+
+        CREATE INDEX IF NOT EXISTS ix_cuotas_estado
+            ON cuotas(estado);
+
+        CREATE INDEX IF NOT EXISTS ix_caja_movimientos_fecha
+            ON caja_movimientos(fecha);
+
+        CREATE INDEX IF NOT EXISTS ix_caja_movimientos_fecha_tipo
+            ON caja_movimientos(fecha, tipo);
+
+        CREATE INDEX IF NOT EXISTS ix_auditoria_creado
+            ON auditoria(creado_en);
+        """
+    )
 
 
 def _migrar_socios_sin_checks(conn: sqlite3.Connection) -> None:
