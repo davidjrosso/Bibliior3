@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sistema Biblioteca</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260706-control-cuotas">
 </head>
 <body>
   <section id="loginScreen" class="login-screen">
@@ -18,19 +18,61 @@
     </form>
   </section>
 
-  <header id="appTopbar" class="topbar" hidden>
-    <div>
-      <h1>Sistema Biblioteca</h1>
-      <p>Socios, cuotas, pagos e impresion local</p>
+  <header id="appTopbar" class="topbar app-header" hidden>
+    <div class="brand-block">
+      <img class="brand-logo" src="assets/logo-biblioteca.png?v=20260706" alt="Biblioteca Popular Justo Jose de Urquiza">
+      <div>
+        <h1>Sistema de gestion</h1>
+        <p>Socios, cuotas, caja y reportes</p>
+      </div>
     </div>
-    <div class="actions">
-      <button id="btnInicio" type="button">Inicio</button>
-      <button id="btnNuevo" type="button">Socio</button>
-      <button id="btnCuotas" type="button">Cuotas</button>
-      <button id="btnCaja" type="button">Caja</button>
-      <button id="btnConfig" type="button">Configuracion</button>
-      <button id="btnLogout" type="button" class="secondary">Salir</button>
-    </div>
+    <nav class="app-nav" aria-label="Menu principal">
+      <button id="btnInicio" type="button" class="nav-direct" data-nav="inicio">Inicio</button>
+      <details class="nav-menu" data-menu="socios">
+        <summary>Socios</summary>
+        <div class="nav-panel">
+          <button id="btnNuevo" type="button" data-nav="socios">Listado</button>
+          <button type="button" data-nav="socio-nuevo">Nuevo socio</button>
+          <button type="button" data-nav="morosos">Morosos</button>
+        </div>
+      </details>
+      <details class="nav-menu" data-menu="cuotas">
+        <summary>Cuotas</summary>
+        <div class="nav-panel">
+          <button id="btnCuotas" type="button" data-nav="cuotas">Administracion</button>
+          <button type="button" data-nav="cuotas-generar">Generar cuotas</button>
+          <button type="button" data-nav="pago-adelantado">Pago adelantado</button>
+          <button type="button" data-nav="imprimir-cuotas">Impresion</button>
+        </div>
+      </details>
+      <details class="nav-menu" data-menu="caja">
+        <summary>Caja</summary>
+        <div class="nav-panel">
+          <button id="btnCaja" type="button" data-nav="caja">Caja diaria</button>
+          <button type="button" data-nav="caja-listado">Listado diario</button>
+          <button type="button" data-nav="caja-ingreso">Ingreso</button>
+          <button type="button" data-nav="caja-egreso">Egreso</button>
+          <button type="button" data-nav="caja-movimientos">Movimientos</button>
+        </div>
+      </details>
+      <details class="nav-menu" data-menu="reportes">
+        <summary>Reportes</summary>
+        <div class="nav-panel">
+          <button type="button" data-nav="reporte-dashboard">Dashboard</button>
+          <button type="button" data-nav="reporte-morosos">Morosos</button>
+          <button type="button" data-nav="reporte-caja">Caja del dia</button>
+          <button type="button" data-nav="reporte-caja-listado">Listado diario</button>
+        </div>
+      </details>
+      <details class="nav-menu" data-menu="config">
+        <summary>Configuracion</summary>
+        <div class="nav-panel">
+          <button id="btnConfig" type="button" data-nav="config">General</button>
+          <button type="button" data-nav="config-seguridad">Seguridad</button>
+        </div>
+      </details>
+    </nav>
+    <button id="btnLogout" type="button" class="logout-button">Salir</button>
   </header>
 
   <div id="paginaInicio" hidden>
@@ -86,107 +128,141 @@
   </div>
 
   <section id="paginaCuotas" class="page" hidden>
-    <section class="panel cuotas-tools cuotas-module-tools">
-      <div>
-        <h2>Modulo de cuotas</h2>
-        <p>Administracion, generacion mensual, pagos, busqueda e impresion.</p>
-      </div>
-      <button type="button" id="btnVolverInicioCuotas" class="secondary">Volver</button>
-      <button type="button" id="btnPagoAdelantado" class="secondary">Pago adelantado</button>
-      <form id="formGenerar" class="inline-form">
-        <input name="periodo" type="month" required>
-        <button>Generar cuotas</button>
-      </form>
-      <form id="formImprimir" class="inline-form">
-        <input name="periodo" type="month" required>
-        <select name="cobrador">
-          <option value="1">Cobrador</option>
-          <option value="3">Biblioteca</option>
-        </select>
-        <button type="submit">Abrir impresion</button>
-      </form>
-    </section>
-
-    <section class="panel cuotas-section">
-      <div class="section-head">
+    <section class="panel module-shell cuotas-shell">
+      <div class="module-head">
         <div>
-          <h2>Administracion de cuotas</h2>
-          <p>Busque, modifique, cambie estados, elimine o imprima cuotas por periodo.</p>
+          <h2>Cuotas</h2>
+          <p>Administracion mensual, pagos, generacion, impresion y morosos.</p>
         </div>
-        <button id="btnRecargarCuotas" class="secondary">Actualizar</button>
+        <button type="button" id="btnVolverInicioCuotas" class="secondary">Volver</button>
       </div>
-      <div class="summary-grid">
-        <div><strong id="cuotasTotal">0</strong><span>Total</span></div>
-        <div><strong id="cuotasPendientes">0</strong><span>Pendientes</span></div>
-        <div><strong id="cuotasPagadas">0</strong><span>Pagadas</span></div>
-        <div><strong id="cuotasMontoPendiente">$0.00</strong><span>Monto pendiente</span></div>
-      </div>
-      <form id="formFiltroCuotas" class="filters">
-        <input name="q" type="search" placeholder="Socio, nro., DNI o direccion">
-        <input name="periodo" type="month">
-        <select name="estado">
-          <option value="">Todos los estados</option>
-          <option value="pendiente">Pendientes</option>
-          <option value="pagada">Pagadas</option>
-        </select>
-        <select name="cobrador">
-          <option value="">Todos los cobradores</option>
-          <option value="1">1 - Cobrador</option>
-          <option value="2">2 - No me acuerdo</option>
-          <option value="3">3 - Biblioteca</option>
-          <option value="4">4 - Pago adelantado</option>
-          <option value="5">5 - Debe mas de cuatro cuotas</option>
-        </select>
-        <button>Buscar</button>
-      </form>
-      <div class="table-wrap cuotas-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Periodo</th>
-              <th>Socio</th>
-              <th>Cobrador</th>
-              <th>Monto</th>
-              <th>Estado</th>
-              <th>Pago</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="cuotasBody"></tbody>
-        </table>
-      </div>
-      <div class="print-actions">
-        <button type="button" id="btnPrintCobrador">Imprimir cobrador</button>
-        <button type="button" id="btnPrintBiblioteca">Imprimir biblioteca</button>
-      </div>
-    </section>
 
-    <section class="panel cuotas-section">
-      <div class="section-head">
-        <div>
-          <h2>Morosos</h2>
-          <p>Socios con mas cuotas impagas que el limite configurado.</p>
-        </div>
-        <div class="row-actions">
-          <button type="button" id="btnActualizarMorosos" class="secondary">Actualizar</button>
-          <button type="button" id="btnImprimirMorosos">Imprimir morosos</button>
-        </div>
+      <div class="module-tabs" aria-label="Secciones de cuotas">
+        <button type="button" data-cuotas-view="admin" class="active">Administracion</button>
+        <button type="button" data-cuotas-view="generar">Generar</button>
+        <button type="button" data-cuotas-view="impresion">Impresion</button>
+        <button type="button" data-cuotas-view="morosos">Morosos</button>
       </div>
-      <div class="table-wrap cuotas-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Nro.</th>
-              <th>Socio</th>
-              <th>Contacto</th>
-              <th>Cobrador</th>
-              <th>Impagas</th>
-              <th>Deuda</th>
-            </tr>
-          </thead>
-          <tbody id="morososBody"></tbody>
-        </table>
-      </div>
+
+      <section class="module-view" data-cuotas-panel="admin">
+        <div class="section-head">
+          <div>
+            <h3>Administracion de cuotas</h3>
+            <p>Busqueda, estado de pago y ajustes puntuales.</p>
+          </div>
+          <div class="row-actions">
+            <button type="button" id="btnPagoAdelantado" class="secondary">Pago adelantado</button>
+            <button id="btnRecargarCuotas" class="secondary">Actualizar</button>
+          </div>
+        </div>
+        <div class="summary-grid">
+          <div><strong id="cuotasTotal">0</strong><span>Total</span></div>
+          <div><strong id="cuotasPendientes">0</strong><span>Pendientes</span></div>
+          <div><strong id="cuotasPagadas">0</strong><span>Pagadas</span></div>
+          <div><strong id="cuotasMontoPendiente">$0.00</strong><span>Monto pendiente</span></div>
+        </div>
+        <form id="formFiltroCuotas" class="filters cuotas-filters">
+          <input name="q" type="search" placeholder="Socio, nro., DNI o direccion">
+          <input name="periodo" type="month">
+          <select name="estado">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="pagada">Pagadas</option>
+          </select>
+          <select name="cobrador">
+            <option value="">Todos los cobradores</option>
+            <option value="1">1 - Cobrador</option>
+            <option value="2">2 - No me acuerdo</option>
+            <option value="3">3 - Biblioteca</option>
+            <option value="4">4 - Pago adelantado</option>
+            <option value="5">5 - Debe mas de cuatro cuotas</option>
+          </select>
+          <button>Buscar</button>
+        </form>
+        <div class="table-wrap cuotas-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Periodo</th>
+                <th>Socio</th>
+                <th>Cobrador</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th>Pago</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="cuotasBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="module-view" data-cuotas-panel="generar" hidden>
+        <div class="tool-page">
+          <div>
+            <h3>Generar cuotas mensuales</h3>
+            <p>Crea las cuotas pendientes del periodo para los socios que corresponden.</p>
+          </div>
+          <form id="formGenerar" class="tool-card-form">
+            <label>Periodo a generar<input name="periodo" type="month" required></label>
+            <div id="generarControl" class="generation-control">
+              Seleccione un periodo para controlar la generacion.
+            </div>
+            <button>Generar cuotas</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="module-view" data-cuotas-panel="impresion" hidden>
+        <div class="tool-page">
+          <div>
+            <h3>Impresion de cuotas</h3>
+            <p>Prepare listados para cobrador o biblioteca segun periodo y responsable.</p>
+          </div>
+          <form id="formImprimir" class="tool-card-form">
+            <label>Periodo<input name="periodo" type="month" required></label>
+            <label>Cobrador
+              <select name="cobrador">
+                <option value="1">Cobrador</option>
+                <option value="3">Biblioteca</option>
+              </select>
+            </label>
+            <button type="submit">Abrir impresion</button>
+          </form>
+          <div class="tool-actions">
+            <button type="button" id="btnPrintCobrador">Imprimir cobrador</button>
+            <button type="button" id="btnPrintBiblioteca" class="secondary">Imprimir biblioteca</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="module-view" data-cuotas-panel="morosos" hidden>
+        <div class="section-head">
+          <div>
+            <h3>Morosos</h3>
+            <p>Socios con mas cuotas impagas que el limite configurado.</p>
+          </div>
+          <div class="row-actions">
+            <button type="button" id="btnActualizarMorosos" class="secondary">Actualizar</button>
+            <button type="button" id="btnImprimirMorosos">Imprimir morosos</button>
+          </div>
+        </div>
+        <div class="table-wrap cuotas-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Nro.</th>
+                <th>Socio</th>
+                <th>Contacto</th>
+                <th>Cobrador</th>
+                <th>Impagas</th>
+                <th>Deuda</th>
+              </tr>
+            </thead>
+            <tbody id="morososBody"></tbody>
+          </table>
+        </div>
+      </section>
     </section>
   </section>
 
@@ -352,7 +428,7 @@
       <div class="section-head">
         <div>
           <h2>Caja diaria</h2>
-          <p>Ingresos, egresos y saldo del dia.</p>
+          <p>Ingresos, egresos y saldo del dia. Solo efectivo.</p>
         </div>
         <div class="row-actions">
           <button type="button" id="btnCajaVolver" class="secondary">Volver</button>
@@ -379,7 +455,7 @@
       <section class="caja-list">
         <div class="section-head">
           <div>
-            <h3>Movimientos</h3>
+            <h3>Movimientos de efectivo</h3>
             <p id="cajaCantidad">Sin movimientos.</p>
           </div>
           <button type="button" id="btnCajaActualizar" class="secondary">Actualizar</button>
@@ -397,6 +473,42 @@
               </tr>
             </thead>
             <tbody id="cajaMovimientosBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="caja-list caja-daily-list">
+        <div class="section-head">
+          <div>
+            <h3>Listado diario de caja</h3>
+            <p>Resumen de efectivo por dia para control y cierre.</p>
+          </div>
+          <form id="formCajaListado" class="inline-form">
+            <input name="desde" type="date" required>
+            <input name="hasta" type="date" required>
+            <button>Consultar</button>
+          </form>
+        </div>
+        <div class="summary-grid caja-listado-summary">
+          <div><strong id="cajaListadoIngresos">$0.00</strong><span>Ingresos efectivo</span></div>
+          <div><strong id="cajaListadoEgresos">$0.00</strong><span>Egresos efectivo</span></div>
+          <div><strong id="cajaListadoNeto">$0.00</strong><span>Neto</span></div>
+          <div><strong id="cajaListadoDias">0</strong><span>Dias listados</span></div>
+        </div>
+        <div class="table-wrap caja-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Saldo inicial</th>
+                <th>Ingresos</th>
+                <th>Egresos</th>
+                <th>Saldo final</th>
+                <th>Mov.</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="cajaListadoBody"></tbody>
           </table>
         </div>
       </section>
@@ -501,10 +613,6 @@
       <label>Medio de pago
         <select name="medio_pago">
           <option value="efectivo">Efectivo</option>
-          <option value="transferencia">Transferencia</option>
-          <option value="tarjeta">Tarjeta</option>
-          <option value="cheque">Cheque</option>
-          <option value="otro">Otro</option>
         </select>
       </label>
       <label class="wide">Descripcion<input name="descripcion" placeholder="Detalle opcional"></label>
@@ -562,6 +670,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=20260703-adelantos-morosos"></script>
+  <script src="app.js?v=20260706-control-cuotas2"></script>
 </body>
 </html>

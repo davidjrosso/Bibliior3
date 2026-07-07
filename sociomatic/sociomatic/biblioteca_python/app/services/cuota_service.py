@@ -9,6 +9,10 @@ def generar(conn, data: dict) -> dict:
     return cuota_model.generar(conn, data)
 
 
+def control_generacion(conn, periodo: str) -> dict:
+    return cuota_model.control_generacion(conn, periodo)
+
+
 def pago_adelantado(conn, data: dict) -> dict:
     return cuota_model.pago_adelantado(conn, data)
 

@@ -67,6 +67,9 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
                 dashboard_controller.get(handler, conn, query)
                 return
 
+            if path == "/api/caja/listado" and method == "GET":
+                caja_controller.daily_list(handler, conn, query)
+                return
             if path == "/api/caja" and method == "GET":
                 caja_controller.get(handler, conn, query)
                 return
@@ -109,6 +112,9 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
                     json_response(handler, {"error": "Metodo no permitido"}, HTTPStatus.METHOD_NOT_ALLOWED)
                 return
 
+            if path == "/api/cuotas/generar/control" and method == "GET":
+                cuota_controller.generate_control(handler, conn, query)
+                return
             if path == "/api/cuotas/generar" and method == "POST":
                 cuota_controller.generate(handler, conn, query)
                 return

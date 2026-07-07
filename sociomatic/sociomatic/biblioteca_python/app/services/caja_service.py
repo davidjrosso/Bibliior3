@@ -5,6 +5,10 @@ def obtener(conn, fecha: str | None = None) -> dict:
     return caja_model.obtener(conn, fecha)
 
 
+def listado_diario(conn, desde: str | None = None, hasta: str | None = None) -> dict:
+    return caja_model.listado_diario(conn, desde, hasta)
+
+
 def actualizar_dia(conn, data: dict) -> None:
     caja_model.actualizar_dia(conn, data)
 

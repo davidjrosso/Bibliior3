@@ -23,6 +23,11 @@ def generate(handler, conn, _query):
     )
 
 
+def generate_control(handler, conn, query):
+    periodo = (query.get("periodo", [""])[0] or "").strip()
+    json_response(handler, {"exito": True, "control": cuota_service.control_generacion(conn, periodo)})
+
+
 def advance_payment(handler, conn, _query):
     data = read_json(handler)
     fecha_pago = data.get("fecha_pago") or today_iso()

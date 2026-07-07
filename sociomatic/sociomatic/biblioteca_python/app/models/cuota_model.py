@@ -7,6 +7,9 @@ def generar(conn, data: dict) -> dict:
     periodo = data.get("periodo") or next_period()
     if not valid_period(periodo):
         raise ValueError("Periodo invalido. Use AAAA-MM.")
+    control = control_generacion(conn, periodo)
+    if not control["puede_generar"]:
+        raise ValueError(control["motivo"])
     socios = conn.execute(
         "SELECT * FROM socios WHERE fecha_baja IS NULL AND cobrador IN (1, 3)"
     ).fetchall()
@@ -24,7 +27,67 @@ def generar(conn, data: dict) -> dict:
             creadas += 1
         except Exception:
             continue
-    return {"periodo": periodo, "cuotas_creadas": creadas}
+    return {"periodo": periodo, "cuotas_creadas": creadas, "control": control}
+
+
+def control_generacion(conn, periodo: str) -> dict:
+    if not valid_period(periodo):
+        raise ValueError("Periodo invalido. Use AAAA-MM.")
+    periodo_anterior = add_months(periodo, -1)
+    total_cuotas = conn.execute("SELECT COUNT(*) AS total FROM cuotas").fetchone()["total"]
+    cuotas_periodo = conn.execute(
+        "SELECT COUNT(*) AS total FROM cuotas WHERE periodo = ?",
+        (periodo,),
+    ).fetchone()["total"]
+    cuotas_anterior = conn.execute(
+        "SELECT COUNT(*) AS total FROM cuotas WHERE periodo = ?",
+        (periodo_anterior,),
+    ).fetchone()["total"]
+    socios_objetivo = _contar_socios_objetivo(conn, periodo)
+    socios_anterior_objetivo = _contar_socios_objetivo(conn, periodo_anterior)
+    faltantes_estimadas = max(int(socios_objetivo or 0) - int(cuotas_periodo or 0), 0)
+    puede_generar = True
+    motivo = ""
+    if total_cuotas and cuotas_anterior < socios_anterior_objetivo:
+        puede_generar = False
+        motivo = (
+            f"No se puede generar {periodo}. El periodo anterior ({periodo_anterior}) no esta completo: "
+            f"tiene {cuotas_anterior} de {socios_anterior_objetivo} cuota(s) esperada(s)."
+        )
+    elif socios_objetivo == 0:
+        puede_generar = False
+        motivo = "No hay socios activos para generar cuotas."
+    elif faltantes_estimadas == 0:
+        puede_generar = False
+        motivo = f"Las cuotas de {periodo} ya estan generadas para los socios alcanzados."
+    return {
+        "periodo": periodo,
+        "periodo_anterior": periodo_anterior,
+        "puede_generar": puede_generar,
+        "motivo": motivo,
+        "socios_objetivo": int(socios_objetivo or 0),
+        "socios_anterior_objetivo": int(socios_anterior_objetivo or 0),
+        "cuotas_periodo": int(cuotas_periodo or 0),
+        "cuotas_anterior": int(cuotas_anterior or 0),
+        "faltantes_estimadas": faltantes_estimadas,
+        "primera_generacion": int(total_cuotas or 0) == 0,
+    }
+
+
+def _contar_socios_objetivo(conn, periodo: str) -> int:
+    return int(
+        conn.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM socios
+            WHERE fecha_baja IS NULL
+              AND cobrador IN (1, 3)
+              AND fecha_alta <= ?
+            """,
+            (f"{periodo}-31",),
+        ).fetchone()["total"]
+        or 0
+    )
 
 
 def crear(conn, data: dict) -> int:

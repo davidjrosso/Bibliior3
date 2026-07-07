@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.models.helpers import now_iso, today_iso
 
@@ -37,6 +37,7 @@ def obtener(conn, fecha: str | None = None) -> dict:
         SELECT *
         FROM caja_movimientos
         WHERE fecha = ?
+          AND medio_pago = 'efectivo'
         ORDER BY id DESC
         """,
         (fecha,),
@@ -56,6 +57,71 @@ def obtener(conn, fecha: str | None = None) -> dict:
             "cantidad_movimientos": len(movimientos),
         },
     }
+
+
+def listado_diario(conn, desde: str | None = None, hasta: str | None = None) -> dict:
+    hasta = (hasta or today_iso()).strip()
+    desde = (desde or _dias_antes(hasta, 30)).strip()
+    if not valid_date(desde) or not valid_date(hasta):
+        raise ValueError("Fechas invalidas. Use AAAA-MM-DD.")
+    if desde > hasta:
+        raise ValueError("La fecha desde no puede ser mayor a hasta.")
+    rows = conn.execute(
+        """
+        SELECT
+            d.fecha,
+            d.saldo_inicial,
+            d.cerrado,
+            d.observacion,
+            COALESCE(SUM(CASE WHEN m.tipo = 'ingreso' THEN m.monto ELSE 0 END), 0) AS ingresos,
+            COALESCE(SUM(CASE WHEN m.tipo = 'egreso' THEN m.monto ELSE 0 END), 0) AS egresos,
+            COUNT(m.id) AS movimientos
+        FROM caja_dias d
+        LEFT JOIN caja_movimientos m
+          ON m.fecha = d.fecha
+         AND m.medio_pago = 'efectivo'
+        WHERE d.fecha BETWEEN ? AND ?
+        GROUP BY d.fecha
+        ORDER BY d.fecha DESC
+        """,
+        (desde, hasta),
+    ).fetchall()
+    dias = []
+    total_ingresos = 0.0
+    total_egresos = 0.0
+    for row in rows:
+        ingresos = float(row["ingresos"] or 0)
+        egresos = float(row["egresos"] or 0)
+        saldo_inicial = float(row["saldo_inicial"] or 0)
+        total_ingresos += ingresos
+        total_egresos += egresos
+        dias.append(
+            {
+                "fecha": row["fecha"],
+                "saldo_inicial": saldo_inicial,
+                "ingresos": ingresos,
+                "egresos": egresos,
+                "saldo_final": saldo_inicial + ingresos - egresos,
+                "movimientos": int(row["movimientos"] or 0),
+                "cerrado": int(row["cerrado"] or 0),
+                "observacion": row["observacion"] or "",
+            }
+        )
+    return {
+        "dias": dias,
+        "resumen": {
+            "desde": desde,
+            "hasta": hasta,
+            "ingresos": total_ingresos,
+            "egresos": total_egresos,
+            "neto": total_ingresos - total_egresos,
+            "dias": len(dias),
+        },
+    }
+
+
+def _dias_antes(fecha: str, dias: int) -> str:
+    return (datetime.strptime(fecha, "%Y-%m-%d") - timedelta(days=dias)).strftime("%Y-%m-%d")
 
 
 def actualizar_dia(conn, data: dict) -> None:

@@ -11,6 +11,13 @@ def get(handler, conn, query):
     json_response(handler, {"exito": True, **data})
 
 
+def daily_list(handler, conn, query):
+    desde = (query.get("desde", [""])[0] or "").strip() or None
+    hasta = (query.get("hasta", [""])[0] or "").strip() or None
+    data = caja_service.listado_diario(conn, desde, hasta)
+    json_response(handler, {"exito": True, **data})
+
+
 def update_day(handler, conn, _query):
     data = read_json(handler)
     actual = caja_model.obtener(conn, data.get("fecha"))["dia"]

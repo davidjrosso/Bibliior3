@@ -13,6 +13,10 @@ const state = {
     dia: null,
     movimientos: [],
     resumen: {}
+  },
+  cajaListado: {
+    dias: [],
+    resumen: {}
   }
 };
 
@@ -36,6 +40,12 @@ function periodoActual() {
 function fechaActual() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function fechaHace(dias) {
+  const date = new Date();
+  date.setDate(date.getDate() - dias);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function periodoDefault() {
@@ -432,6 +442,29 @@ async function cargarCuotas() {
   renderResumenCuotas();
 }
 
+async function cargarControlGeneracion() {
+  const form = $('#formGenerar');
+  if (!form || !form.periodo.value) return null;
+  const data = await api(`/api/cuotas/generar/control?periodo=${encodeURIComponent(form.periodo.value)}`);
+  renderControlGeneracion(data.control);
+  return data.control;
+}
+
+function renderControlGeneracion(control) {
+  const box = $('#generarControl');
+  if (!box || !control) return;
+  box.className = `generation-control ${control.puede_generar ? 'ok' : 'blocked'}`;
+  box.innerHTML = `
+    <strong>${control.puede_generar ? 'Listo para generar' : 'No se puede generar'}</strong>
+    <span>Periodo: ${control.periodo}</span>
+    <span>Periodo anterior requerido: ${control.periodo_anterior} (${control.cuotas_anterior} de ${control.socios_anterior_objetivo} esperadas)</span>
+    <span>Socios alcanzados: ${control.socios_objetivo}</span>
+    <span>Cuotas ya existentes: ${control.cuotas_periodo}</span>
+    <span>Cuotas estimadas a crear: ${control.faltantes_estimadas}</span>
+    ${control.motivo ? `<small>${control.motivo}</small>` : ''}
+  `;
+}
+
 async function cargarMorosos() {
   const data = await api('/api/socios/morosos');
   state.morosos = data.morosos;
@@ -579,7 +612,10 @@ function renderCuotas(cuotas) {
       await pagarCuota(btn.dataset.pagar);
       await seleccionarSocio(state.selectedId);
       await cargarSocios();
-      if ($('#paginaCaja') && !$('#paginaCaja').hidden) await cargarCaja();
+      if ($('#paginaCaja') && !$('#paginaCaja').hidden) {
+        await cargarCaja();
+        await cargarCajaListado();
+      }
     });
   });
   box.querySelectorAll('[data-pendiente]').forEach(btn => {
@@ -591,7 +627,10 @@ function renderCuotas(cuotas) {
       );
       await seleccionarSocio(state.selectedId);
       await cargarSocios();
-      if ($('#paginaCaja') && !$('#paginaCaja').hidden) await cargarCaja();
+      if ($('#paginaCaja') && !$('#paginaCaja').hidden) {
+        await cargarCaja();
+        await cargarCajaListado();
+      }
     });
   });
 }
@@ -720,6 +759,19 @@ async function cargarCaja() {
   renderCaja();
 }
 
+async function cargarCajaListado() {
+  const form = $('#formCajaListado');
+  if (!form) return;
+  const desde = form.desde.value || fechaHace(30);
+  const hasta = form.hasta.value || fechaActual();
+  const data = await api(`/api/caja/listado?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`);
+  state.cajaListado = {
+    dias: data.dias,
+    resumen: data.resumen
+  };
+  renderCajaListado();
+}
+
 function renderCaja() {
   const form = $('#formCajaDia');
   if (!form || !state.caja.dia) return;
@@ -731,7 +783,7 @@ function renderCaja() {
   $('#cajaIngresos').textContent = money(state.caja.resumen.ingresos);
   $('#cajaEgresos').textContent = money(state.caja.resumen.egresos);
   $('#cajaSaldoFinal').textContent = money(state.caja.resumen.saldo_final);
-  $('#cajaCantidad').textContent = `${state.caja.resumen.cantidad_movimientos} movimiento(s) del dia.`;
+  $('#cajaCantidad').textContent = `${state.caja.resumen.cantidad_movimientos} movimiento(s) de efectivo del dia.`;
 
   const body = $('#cajaMovimientosBody');
   body.innerHTML = '';
@@ -766,9 +818,43 @@ function renderCaja() {
         'Autorizar eliminacion de movimiento de caja.'
       );
       await cargarCaja();
+      await cargarCajaListado();
       toast('Movimiento eliminado');
     });
   });
+}
+
+function renderCajaListado() {
+  const body = $('#cajaListadoBody');
+  if (!body) return;
+  const resumen = state.cajaListado.resumen || {};
+  $('#cajaListadoIngresos').textContent = money(resumen.ingresos);
+  $('#cajaListadoEgresos').textContent = money(resumen.egresos);
+  $('#cajaListadoNeto').textContent = money(resumen.neto);
+  $('#cajaListadoDias').textContent = resumen.dias || 0;
+  body.innerHTML = '';
+  if (!state.cajaListado.dias.length) {
+    body.innerHTML = '<tr><td colspan="7">No hay dias de caja cargados para este rango.</td></tr>';
+    return;
+  }
+  for (const dia of state.cajaListado.dias) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${dia.fecha}</td>
+      <td>${money(dia.saldo_inicial)}</td>
+      <td>${money(dia.ingresos)}</td>
+      <td>${money(dia.egresos)}</td>
+      <td><strong>${money(dia.saldo_final)}</strong></td>
+      <td>${dia.movimientos}</td>
+      <td>${Number(dia.cerrado) === 1 ? 'Cerrada' : 'Abierta'}</td>
+    `;
+    tr.addEventListener('click', async () => {
+      $('#formCajaDia').fecha.value = dia.fecha;
+      await cargarCaja();
+      enfocar('#formCajaDia');
+    });
+    body.appendChild(tr);
+  }
 }
 
 function abrirMovimientoCaja(tipo, id = null) {
@@ -840,14 +926,26 @@ function mostrarPaginaSocios() {
   cargarSociosCrud();
 }
 
-function mostrarPaginaCuotas() {
+function mostrarPaginaCuotas(vista = 'admin') {
   $('#paginaInicio').hidden = true;
   $('#paginaSocios').hidden = true;
   $('#paginaCuotas').hidden = false;
   $('#paginaConfig').hidden = true;
   $('#paginaCaja').hidden = true;
+  mostrarCuotasHoja(vista);
   cargarCuotas();
   cargarMorosos();
+}
+
+function mostrarCuotasHoja(vista = 'admin') {
+  const views = new Set(['admin', 'generar', 'impresion', 'morosos']);
+  const selected = views.has(vista) ? vista : 'admin';
+  document.querySelectorAll('[data-cuotas-panel]').forEach(panel => {
+    panel.hidden = panel.dataset.cuotasPanel !== selected;
+  });
+  document.querySelectorAll('[data-cuotas-view]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.cuotasView === selected);
+  });
 }
 
 function mostrarPaginaInicio() {
@@ -878,6 +976,96 @@ function mostrarPaginaCaja() {
   cargarCaja();
 }
 
+function cerrarMenus() {
+  document.querySelectorAll('.nav-menu[open]').forEach(menu => {
+    menu.removeAttribute('open');
+  });
+}
+
+function enfocar(selector) {
+  const el = $(selector);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (typeof el.focus === 'function') el.focus({ preventScroll: true });
+}
+
+function navegar(action) {
+  cerrarMenus();
+  if (action === 'inicio' || action === 'reporte-dashboard') {
+    mostrarPaginaInicio();
+    return;
+  }
+  if (action === 'socios') {
+    mostrarPaginaSocios();
+    return;
+  }
+  if (action === 'socio-nuevo') {
+    mostrarPaginaSocios();
+    setTimeout(() => abrirModalSocio(), 120);
+    return;
+  }
+  if (action === 'cuotas') {
+    mostrarPaginaCuotas('admin');
+    return;
+  }
+  if (action === 'cuotas-generar') {
+    mostrarPaginaCuotas('generar');
+    setTimeout(async () => {
+      await cargarControlGeneracion();
+      enfocar('#formGenerar input[name="periodo"]');
+    }, 120);
+    return;
+  }
+  if (action === 'pago-adelantado') {
+    mostrarPaginaCuotas('admin');
+    setTimeout(() => abrirPagoAdelantado(), 180);
+    return;
+  }
+  if (action === 'imprimir-cuotas') {
+    mostrarPaginaCuotas('impresion');
+    setTimeout(() => enfocar('#formImprimir input[name="periodo"]'), 120);
+    return;
+  }
+  if (action === 'morosos' || action === 'reporte-morosos') {
+    mostrarPaginaCuotas('morosos');
+    setTimeout(() => enfocar('#morososBody'), 160);
+    return;
+  }
+  if (action === 'caja' || action === 'reporte-caja') {
+    mostrarPaginaCaja();
+    setTimeout(() => enfocar(action === 'reporte-caja' ? '.caja-summary' : '#formCajaDia'), 160);
+    return;
+  }
+  if (action === 'caja-listado' || action === 'reporte-caja-listado') {
+    mostrarPaginaCaja();
+    setTimeout(() => enfocar('.caja-daily-list'), 160);
+    return;
+  }
+  if (action === 'caja-ingreso') {
+    mostrarPaginaCaja();
+    setTimeout(() => abrirMovimientoCaja('ingreso'), 180);
+    return;
+  }
+  if (action === 'caja-egreso') {
+    mostrarPaginaCaja();
+    setTimeout(() => abrirMovimientoCaja('egreso'), 180);
+    return;
+  }
+  if (action === 'caja-movimientos') {
+    mostrarPaginaCaja();
+    setTimeout(() => enfocar('#cajaMovimientosBody'), 160);
+    return;
+  }
+  if (action === 'config') {
+    mostrarPaginaConfig();
+    return;
+  }
+  if (action === 'config-seguridad') {
+    mostrarPaginaConfig();
+    setTimeout(() => enfocar('#formSeguridad'), 160);
+  }
+}
+
 function imprimirCuotas(cobrador) {
   const periodo = $('#formFiltroCuotas').periodo.value || $('#formImprimir').periodo.value || periodoSiguiente();
   const cobradorFinal = cobrador || state.config.impresion_cobrador_default || 1;
@@ -906,6 +1094,8 @@ async function init() {
   if ($('#formCuota')) $('#formCuota').periodo.value = periodo;
   $('#formFiltroCuotas').periodo.value = periodo;
   $('#formCajaDia').fecha.value = fechaActual();
+  $('#formCajaListado').desde.value = fechaHace(30);
+  $('#formCajaListado').hasta.value = fechaActual();
 
   if ($('#btnBuscar')) $('#btnBuscar').addEventListener('click', cargarSocios);
   if ($('#buscar')) {
@@ -917,6 +1107,16 @@ async function init() {
   $('#formDashboard').addEventListener('submit', async (event) => {
     event.preventDefault();
     await cargarDashboard();
+  });
+
+  document.querySelectorAll('[data-nav]').forEach(btn => {
+    btn.addEventListener('click', () => navegar(btn.dataset.nav));
+  });
+  document.querySelectorAll('[data-cuotas-view]').forEach(btn => {
+    btn.addEventListener('click', () => mostrarCuotasHoja(btn.dataset.cuotasView));
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.app-nav')) cerrarMenus();
   });
 
   $('#btnInicio').addEventListener('click', mostrarPaginaInicio);
@@ -949,6 +1149,11 @@ async function init() {
   $('#btnActualizarMorosos').addEventListener('click', cargarMorosos);
   $('#btnImprimirMorosos').addEventListener('click', () => window.open('/imprimir-morosos', '_blank'));
   $('#formCajaDia').fecha.addEventListener('change', cargarCaja);
+  $('#formGenerar').periodo.addEventListener('change', cargarControlGeneracion);
+  $('#formCajaListado').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await cargarCajaListado();
+  });
   $('#formAdminClave').addEventListener('submit', (event) => {
     event.preventDefault();
     const clave = event.currentTarget.clave.value;
@@ -1041,9 +1246,22 @@ async function init() {
   $('#formGenerar').addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = formData(event.currentTarget);
+    const control = await cargarControlGeneracion();
+    if (!control || !control.puede_generar) {
+      throw new Error((control && control.motivo) || 'Revise el periodo antes de generar cuotas.');
+    }
+    const mensaje =
+      `Va a generar cuotas para ${control.periodo}.\n\n` +
+      `Periodo anterior requerido: ${control.periodo_anterior} (${control.cuotas_anterior} de ${control.socios_anterior_objetivo} esperadas)\n` +
+      `Socios alcanzados: ${control.socios_objetivo}\n` +
+      `Cuotas ya existentes en el periodo: ${control.cuotas_periodo}\n` +
+      `Cuotas estimadas a crear: ${control.faltantes_estimadas}\n\n` +
+      'Confirma la generacion?';
+    if (!confirm(mensaje)) return;
     const result = await api('/api/cuotas/generar', { method: 'POST', body: JSON.stringify(data) });
     $('#formFiltroCuotas').periodo.value = result.periodo;
     await refrescarTodo();
+    await cargarControlGeneracion();
     toast(`Generadas ${result.cuotas_creadas} cuota(s) para ${result.periodo}`);
   });
 
@@ -1079,6 +1297,7 @@ async function init() {
       await api('/api/caja/dia', request);
     }
     await cargarCaja();
+    await cargarCajaListado();
     toast('Caja diaria guardada');
   });
 
@@ -1135,6 +1354,7 @@ async function init() {
     }
     cerrarDialogs();
     await cargarCaja();
+    await cargarCajaListado();
   });
 
   $('#formPagoAdelantado').addEventListener('submit', async (event) => {
@@ -1232,6 +1452,8 @@ async function init() {
   await cargarCuotas();
   await cargarMorosos();
   await cargarCaja();
+  await cargarCajaListado();
+  await cargarControlGeneracion();
 }
 
 init().catch(error => toast(error.message));
