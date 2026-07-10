@@ -11,6 +11,12 @@ from app.settings import DB_PATH, STATIC_DIR
 class BibliotecaHandler(SimpleHTTPRequestHandler):
     server_version = "BibliotecaPython/1.0"
 
+    def end_headers(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path in ("", "/") or parsed.path.endswith(".html"):
+            self.send_header("Cache-Control", "no-cache, must-revalidate")
+        super().end_headers()
+
     def translate_path(self, path: str) -> str:
         parsed = urlparse(path)
         if parsed.path == "/":
