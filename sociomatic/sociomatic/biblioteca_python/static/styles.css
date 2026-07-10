@@ -809,6 +809,62 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
   width: min(440px, calc(100vw - 24px));
 }
 
+.socio-search-field {
+  display: grid;
+  gap: 8px;
+}
+
+.selected-member {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.selected-member.ready {
+  border-color: #b8dbd3;
+  background: #f2fbf8;
+  color: var(--brand-strong);
+}
+
+.member-results {
+  display: grid;
+  gap: 6px;
+  max-height: 230px;
+  overflow: auto;
+}
+
+.member-result {
+  display: grid;
+  gap: 3px;
+  justify-content: stretch;
+  text-align: left;
+  border-color: var(--line);
+  background: #fff;
+  color: var(--text);
+  box-shadow: none;
+}
+
+.member-result:hover {
+  background: #eef7f5;
+  color: var(--brand-strong);
+}
+
+.member-result span,
+.member-results-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.member-results-note {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+
 .muted-note,
 .empty-small {
   color: var(--muted);

@@ -635,9 +635,14 @@
   <dialog id="modalPagoAdelantado">
     <form id="formPagoAdelantado" class="grid-form modal-form">
       <h2>Pago adelantado</h2>
-      <label>Socio
-        <select name="socio_id" required></select>
-      </label>
+      <div class="wide socio-search-field">
+        <label>Buscar socio
+          <input id="pagoAdelantadoSocioBuscar" type="search" placeholder="Nombre, apellido, DNI o nro. de socio" autocomplete="off">
+        </label>
+        <input name="socio_id" type="hidden" required>
+        <div id="pagoAdelantadoSocioSeleccionado" class="selected-member">Seleccione un socio.</div>
+        <div id="pagoAdelantadoSocioResultados" class="member-results"></div>
+      </div>
       <label>Desde periodo<input name="desde_periodo" type="month" required></label>
       <label>Cantidad de meses<input name="cantidad" type="number" min="1" max="60" value="1" required></label>
       <label>Fecha de pago<input name="fecha_pago" type="date" required></label>
@@ -670,6 +675,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=20260706-control-cuotas2"></script>
+  <script src="app.js?v=20260710-adelanto-buscar-socio"></script>
 </body>
 </html>

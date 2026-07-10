@@ -24,6 +24,7 @@ const $ = (selector) => document.querySelector(selector);
 let adminKeyResolve = null;
 let adminKeyReject = null;
 let authEventsBound = false;
+let pagoAdelantadoSearchTimer = null;
 
 function periodoSiguiente() {
   const now = new Date();
@@ -729,19 +730,74 @@ function renderMorosos() {
   }
 }
 
+function socioPagoTexto(socio) {
+  return `#${socio.nro_socio} ${socio.apellido}, ${socio.nombre} - DNI ${socio.dni || '-'}`;
+}
+
+function seleccionarSocioPagoAdelantado(socio) {
+  const form = $('#formPagoAdelantado');
+  if (!form || !socio) return;
+  form.socio_id.value = socio.id;
+  $('#pagoAdelantadoSocioBuscar').value = socioPagoTexto(socio);
+  $('#pagoAdelantadoSocioSeleccionado').textContent = socioPagoTexto(socio);
+  $('#pagoAdelantadoSocioSeleccionado').classList.add('ready');
+  $('#pagoAdelantadoSocioResultados').innerHTML = '';
+}
+
+function renderResultadosSocioPago(socios, mensaje = '') {
+  const body = $('#pagoAdelantadoSocioResultados');
+  if (!body) return;
+  body.innerHTML = '';
+  if (mensaje) {
+    body.innerHTML = `<div class="member-results-note">${mensaje}</div>`;
+    return;
+  }
+  if (!socios.length) {
+    body.innerHTML = '<div class="member-results-note">No se encontraron socios.</div>';
+    return;
+  }
+  for (const socio of socios.slice(0, 20)) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'member-result';
+    btn.innerHTML = `
+      <strong>${socio.apellido}, ${socio.nombre}</strong>
+      <span>#${socio.nro_socio} | DNI ${socio.dni || '-'} | ${socio.telefono || 'Sin telefono'}</span>
+    `;
+    btn.addEventListener('click', () => seleccionarSocioPagoAdelantado(socio));
+    body.appendChild(btn);
+  }
+}
+
+async function buscarSociosPagoAdelantado() {
+  const input = $('#pagoAdelantadoSocioBuscar');
+  const form = $('#formPagoAdelantado');
+  if (!input || !form) return;
+  const q = input.value.trim();
+  form.socio_id.value = '';
+  $('#pagoAdelantadoSocioSeleccionado').textContent = 'Seleccione un socio.';
+  $('#pagoAdelantadoSocioSeleccionado').classList.remove('ready');
+  if (q.length < 2) {
+    renderResultadosSocioPago([], 'Escriba al menos 2 caracteres para buscar.');
+    return;
+  }
+  const data = await api(`/api/socios?q=${encodeURIComponent(q)}`);
+  renderResultadosSocioPago(data.socios || []);
+}
+
 function abrirPagoAdelantado() {
   const form = $('#formPagoAdelantado');
   form.reset();
-  const select = form.socio_id;
-  select.innerHTML = '';
-  for (const socio of state.socios) {
-    const option = document.createElement('option');
-    option.value = socio.id;
-    option.textContent = `#${socio.nro_socio} ${socio.apellido}, ${socio.nombre}`;
-    select.appendChild(option);
-  }
+  form.socio_id.value = '';
+  $('#pagoAdelantadoSocioBuscar').value = '';
+  $('#pagoAdelantadoSocioSeleccionado').textContent = 'Seleccione un socio.';
+  $('#pagoAdelantadoSocioSeleccionado').classList.remove('ready');
+  renderResultadosSocioPago([], 'Busque por nombre, apellido, DNI o nro. de socio.');
   const selected = state.socioCrudId || state.selectedId;
-  if (selected) select.value = String(selected);
+  if (selected) {
+    const socio = state.socios.find(item => Number(item.id) === Number(selected));
+    if (socio) seleccionarSocioPagoAdelantado(socio);
+  }
   form.desde_periodo.value = periodoDefault();
   form.fecha_pago.value = fechaActual();
   form.cantidad.value = 1;
@@ -1146,6 +1202,12 @@ async function init() {
   $('#btnCajaEgreso').addEventListener('click', () => abrirMovimientoCaja('egreso'));
   $('#btnCajaActualizar').addEventListener('click', cargarCaja);
   $('#btnPagoAdelantado').addEventListener('click', abrirPagoAdelantado);
+  $('#pagoAdelantadoSocioBuscar').addEventListener('input', () => {
+    clearTimeout(pagoAdelantadoSearchTimer);
+    pagoAdelantadoSearchTimer = setTimeout(() => {
+      buscarSociosPagoAdelantado().catch(error => toast(error.message));
+    }, 250);
+  });
   $('#btnActualizarMorosos').addEventListener('click', cargarMorosos);
   $('#btnImprimirMorosos').addEventListener('click', () => window.open('/imprimir-morosos', '_blank'));
   $('#formCajaDia').fecha.addEventListener('change', cargarCaja);
@@ -1360,6 +1422,10 @@ async function init() {
   $('#formPagoAdelantado').addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = formData(event.currentTarget);
+    if (!data.socio_id) {
+      toast('Seleccione un socio para el pago adelantado');
+      return;
+    }
     const request = { method: 'POST', body: JSON.stringify(data) };
     const cajaCerrada = state.caja.dia && state.caja.dia.fecha === data.fecha_pago && Number(state.caja.dia.cerrado) === 1;
     const result = cajaCerrada

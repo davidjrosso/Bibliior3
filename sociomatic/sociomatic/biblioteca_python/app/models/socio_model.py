@@ -101,7 +101,7 @@ def obtener_cuotas(conn, socio_id: int) -> list[dict]:
     return [
         dict(row)
         for row in conn.execute(
-            "SELECT * FROM cuotas WHERE socio_id = ? ORDER BY periodo DESC",
+            "SELECT * FROM cuotas WHERE socio_id = ? ORDER BY periodo ASC",
             (socio_id,),
         )
     ]
