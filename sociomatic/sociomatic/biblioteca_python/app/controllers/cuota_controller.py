@@ -51,11 +51,23 @@ def delete(handler, conn, _query, cuota_id: int):
 
 
 def pay(handler, conn, _query, cuota_id: int):
-    caja_hoy = caja_model.obtener(conn, today_iso())["dia"]
-    if caja_hoy and int(caja_hoy["cerrado"] or 0) == 1:
+    data = read_json(handler)
+    fecha_pago = data.get("fecha_pago") or today_iso()
+    caja_dia = caja_model.obtener(conn, fecha_pago)["dia"]
+    if caja_dia and int(caja_dia["cerrado"] or 0) == 1:
         security_model.require_admin(handler, conn, "cuota.pagar_caja_cerrada", f"Cuota {cuota_id}")
-    cuota_service.pagar(conn, cuota_id)
+    cuota_service.pagar(conn, cuota_id, fecha_pago, data.get("medio_pago", "efectivo"))
     json_response(handler, {"exito": True})
+
+
+def pay_many(handler, conn, _query):
+    data = read_json(handler)
+    fecha_pago = data.get("fecha_pago") or today_iso()
+    caja_dia = caja_model.obtener(conn, fecha_pago)["dia"]
+    if caja_dia and int(caja_dia["cerrado"] or 0) == 1:
+        security_model.require_admin(handler, conn, "cuota.pagar_caja_cerrada", f"Caja {fecha_pago}")
+    result = cuota_model.marcar_pagadas(conn, data)
+    json_response(handler, {"exito": True, **result})
 
 
 def pending(handler, conn, _query, cuota_id: int):

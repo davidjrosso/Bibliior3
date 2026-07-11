@@ -25,8 +25,8 @@ def eliminar(conn, cuota_id: int) -> None:
     cuota_model.eliminar(conn, cuota_id)
 
 
-def pagar(conn, cuota_id: int) -> None:
-    cuota_model.marcar_pagada(conn, cuota_id)
+def pagar(conn, cuota_id: int, fecha_pago: str | None = None, medio_pago: str = "efectivo") -> None:
+    cuota_model.marcar_pagada(conn, cuota_id, fecha_pago, medio_pago)
 
 
 def despagar(conn, cuota_id: int) -> None:

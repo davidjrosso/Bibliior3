@@ -721,6 +721,65 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
   color: var(--muted);
 }
 
+.member-dues-toolbar {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.segmented-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.segmented-controls button {
+  min-height: 34px;
+  padding: 7px 10px;
+  border-color: var(--line);
+  background: #fff;
+  color: var(--text);
+}
+
+.segmented-controls button.active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.member-paybar {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) auto auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.member-paybar strong {
+  min-height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.dues-check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.dues-check input {
+  width: auto;
+}
+
 .socio-form-modal {
   max-height: 82vh;
   overflow: auto;
@@ -1015,4 +1074,5 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
   .config-grid { grid-template-columns: 1fr; }
   .config-crud-grid { grid-template-columns: 1fr; }
   .caja-day-form { grid-template-columns: 1fr; }
+  .member-paybar { grid-template-columns: 1fr; }
 }

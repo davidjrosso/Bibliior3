@@ -127,6 +127,9 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
             if path == "/api/cuotas" and method == "POST":
                 cuota_controller.create(handler, conn, query)
                 return
+            if path == "/api/cuotas/pagar" and method == "POST":
+                cuota_controller.pay_many(handler, conn, query)
+                return
             cuota_match = re.fullmatch(r"/api/cuotas/(\d+)", path)
             if cuota_match:
                 cuota_id = int(cuota_match.group(1))

@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual de usuario - Sistema Biblioteca</title>
+  <style>
+    :root {
+      --bg: #f3f6f8;
+      --panel: #ffffff;
+      --text: #1b1d1f;
+      --muted: #647174;
+      --line: #dce3e6;
+      --brand: #08786f;
+      --header: #172321;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.5;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 22px;
+      background: var(--header);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,.16);
+    }
+    header h1 { margin: 0; font-size: 20px; }
+    header span { color: #c3d3cf; font-size: 13px; font-weight: 700; }
+    header a {
+      color: #fff;
+      text-decoration: none;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-weight: 700;
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 22px 16px 44px;
+    }
+    nav {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    nav a {
+      display: block;
+      color: var(--brand);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 11px;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 18px;
+      box-shadow: 0 10px 26px rgba(20,34,42,.05);
+    }
+    h2 { margin: 0 0 8px; font-size: 23px; }
+    h3 { margin: 16px 0 8px; }
+    p { margin: 7px 0; }
+    ul, ol { padding-left: 22px; }
+    code {
+      background: #eef7f5;
+      color: #045a53;
+      border-radius: 4px;
+      padding: 2px 5px;
+    }
+    img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin: 12px 0;
+      background: #fff;
+    }
+    .note {
+      border-left: 4px solid var(--brand);
+      padding: 10px 12px;
+      background: #f2fbf8;
+      border-radius: 6px;
+    }
+    .muted { color: var(--muted); }
+    @media (max-width: 760px) {
+      header { flex-direction: column; align-items: flex-start; }
+      section { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Manual de usuario</h1>
+      <span>Sistema Biblioteca - v2026.07.11.2</span>
+    </div>
+    <a href="/">Volver al sistema</a>
+  </header>
+
+  <main>
+    <nav aria-label="Indice del manual">
+      <a href="#ingreso">Ingreso</a>
+      <a href="#dashboard">Dashboard</a>
+      <a href="#cobro-diario">Cobro diario</a>
+      <a href="#cuotas">Administracion de cuotas</a>
+      <a href="#adelantado">Pago adelantado</a>
+      <a href="#generacion">Generacion mensual</a>
+      <a href="#impresion">Impresion</a>
+      <a href="#morosos">Morosos</a>
+      <a href="#caja">Caja diaria</a>
+      <a href="#configuracion">Configuracion</a>
+      <a href="#seguridad">Seguridad</a>
+    </nav>
+
+    <section id="ingreso">
+      <h2>1. Ingreso al sistema</h2>
+      <p>Para entrar se debe ingresar usuario y contrasena.</p>
+      <img src="assets/manual/01-login.png" alt="Pantalla de ingreso al sistema">
+      <p>Datos iniciales: usuario <code>admin</code>, contrasena <code>1234</code>.</p>
+      <p class="note">Recomendacion: cambiar la contrasena inicial desde <code>Configuracion &gt; Seguridad</code> cuando el sistema quede en uso real.</p>
+    </section>
+
+    <section id="dashboard">
+      <h2>2. Pantalla principal</h2>
+      <img src="assets/manual/02-dashboard.png" alt="Dashboard principal">
+      <p>El dashboard resume socios activos, cuotas pagas e impagas, monto recaudado, monto pendiente, totales historicos y recaudacion por cobrador.</p>
+      <p>La version visible en el menu permite confirmar si la web esta actualizada.</p>
+    </section>
+
+    <section id="cobro-diario">
+      <h2>3. Flujo diario recomendado: cobrar cuotas</h2>
+      <p>Ruta recomendada: <code>Socios &gt; Listado</code>.</p>
+      <img src="assets/manual/03-socios-cobro.png" alt="Listado de socios y cobro de cuotas">
+      <ol>
+        <li>Buscar el socio por nombre, apellido, DNI o numero de socio.</li>
+        <li>Hacer click sobre el socio.</li>
+        <li>Usar los filtros <code>Impagas</code>, <code>Pagas</code> o <code>Todas</code>.</li>
+        <li>Tildar las cuotas que el socio quiere pagar.</li>
+        <li>Indicar fecha y medio de pago.</li>
+        <li>Presionar <code>Pagar seleccionadas</code>.</li>
+      </ol>
+      <p class="note">Solo el medio <code>Efectivo</code> mueve caja diaria. Transferencia, tarjeta, cheque u otro medio no generan movimiento de caja.</p>
+    </section>
+
+    <section id="cuotas">
+      <h2>4. Administracion de cuotas</h2>
+      <p>Ruta: <code>Cuotas &gt; Administracion</code>.</p>
+      <img src="assets/manual/04-cuotas-administracion.png" alt="Administracion de cuotas">
+      <p>Esta pantalla sirve para buscar, revisar y corregir cuotas por socio, periodo, estado o cobrador.</p>
+      <ul>
+        <li><code>Pagar</code>: marca una cuota pendiente como pagada.</li>
+        <li><code>Editar</code>: modifica una cuota puntual.</li>
+        <li><code>Pendiente</code>: vuelve una cuota pagada a pendiente, con clave de administrador.</li>
+        <li><code>Eliminar</code>: borra una cuota, con clave de administrador.</li>
+      </ul>
+      <p>Para cobros normales del mostrador conviene usar <code>Socios &gt; Listado</code>.</p>
+    </section>
+
+    <section id="adelantado">
+      <h2>5. Pago adelantado</h2>
+      <p>Se usa cuando un socio quiere abonar cuotas futuras que todavia no fueron generadas en la operatoria mensual.</p>
+      <ol>
+        <li>Ir a <code>Cuotas &gt; Pago adelantado</code>.</li>
+        <li>Buscar el socio.</li>
+        <li>Elegir desde que periodo comienza el adelanto.</li>
+        <li>Indicar cantidad de meses, fecha y medio de pago.</li>
+        <li>Confirmar con <code>Generar y pagar</code>.</li>
+      </ol>
+      <p class="note">Si una cuota del rango ya esta pagada, el sistema bloquea la operacion para evitar doble cobro.</p>
+    </section>
+
+    <section id="generacion">
+      <h2>6. Generacion mensual de cuotas</h2>
+      <p>Ruta: <code>Cuotas &gt; Generar cuotas</code>. Esta operatoria se realiza una vez por mes.</p>
+      <img src="assets/manual/05-generar-cuotas.png" alt="Generacion mensual de cuotas">
+      <ol>
+        <li>Elegir el periodo a generar.</li>
+        <li>Revisar el control previo.</li>
+        <li>Si el sistema indica que se puede generar, presionar <code>Generar cuotas</code>.</li>
+        <li>Confirmar la operacion.</li>
+      </ol>
+      <p>El sistema no permite generar un mes si el mes anterior no esta completo y no duplica cuotas ya generadas.</p>
+    </section>
+
+    <section id="impresion">
+      <h2>7. Impresion de cuotas</h2>
+      <p>Ruta: <code>Cuotas &gt; Impresion</code>.</p>
+      <img src="assets/manual/06-impresion-cuotas.png" alt="Impresion de cuotas">
+      <p>Elegir periodo y cobrador, luego presionar <code>Abrir impresion</code>.</p>
+      <p>Los socios morosos no salen en la impresion normal de cuotas; tienen su listado separado.</p>
+    </section>
+
+    <section id="morosos">
+      <h2>8. Morosos</h2>
+      <p>Ruta: <code>Cuotas &gt; Morosos</code>.</p>
+      <img src="assets/manual/07-morosos.png" alt="Listado de morosos">
+      <p>Muestra socios que superan el limite de cuotas impagas configurado. Permite revisar deuda e imprimir listado.</p>
+    </section>
+
+    <section id="caja">
+      <h2>9. Caja diaria</h2>
+      <p>Ruta: <code>Caja &gt; Caja diaria</code>.</p>
+      <img src="assets/manual/08-caja-diaria.png" alt="Caja diaria">
+      <p>La caja diaria registra solamente movimientos en efectivo.</p>
+      <ul>
+        <li>Los cobros en efectivo de cuotas generan ingreso automatico.</li>
+        <li>Pagos por transferencia, tarjeta, cheque u otro medio no se registran en caja.</li>
+        <li>Si una caja esta cerrada, modificarla requiere clave de administrador.</li>
+      </ul>
+    </section>
+
+    <section id="configuracion">
+      <h2>10. Configuracion</h2>
+      <p>Ruta: <code>Configuracion &gt; General</code>.</p>
+      <img src="assets/manual/09-configuracion.png" alt="Configuracion general">
+      <p>Desde aqui se administran periodo por defecto, cobrador por defecto, estado inicial del socio, limite de morosos, tipos de socio, valores de cuota, cobradores, seguridad y auditoria.</p>
+    </section>
+
+    <section id="seguridad">
+      <h2>11. Seguridad y buenas practicas</h2>
+      <p>El sistema tiene usuario y contrasena para ingresar, y clave de administrador para acciones delicadas.</p>
+      <ul>
+        <li>Dar de baja socios.</li>
+        <li>Eliminar cuotas.</li>
+        <li>Volver cuotas pagadas a pendientes.</li>
+        <li>Editar o eliminar movimientos de caja.</li>
+        <li>Modificar caja cerrada.</li>
+        <li>Cambiar configuracion sensible.</li>
+      </ul>
+      <h3>Operatoria diaria</h3>
+      <p>Usar <code>Socios &gt; Listado</code>, buscar socio, ver impagas, tildar cuotas y cobrar.</p>
+      <h3>Operatoria mensual</h3>
+      <p>Usar <code>Cuotas &gt; Generar cuotas</code>, revisar el periodo y confirmar generacion.</p>
+      <h3>Control de caja</h3>
+      <p>Usar <code>Caja &gt; Caja diaria</code>, revisar movimientos y comparar el saldo final con efectivo real.</p>
+    </section>
+  </main>
+
+  <script>
+    fetch('/api/auth/session')
+      .then(response => response.ok ? response.json() : { autenticado: false })
+      .then(data => {
+        if (!data.autenticado) window.location.href = '/';
+      })
+      .catch(() => {
+        window.location.href = '/';
+      });
+  </script>
+</body>
+</html>

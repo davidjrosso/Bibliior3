@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sistema Biblioteca</title>
-  <link rel="stylesheet" href="styles.css?v=20260710-version-web">
+  <link rel="stylesheet" href="styles.css?v=20260711-manual">
 </head>
 <body>
   <section id="loginScreen" class="login-screen">
@@ -15,7 +15,7 @@
       <label>Contrasena<input name="clave" type="password" autocomplete="current-password" required></label>
       <button>Entrar</button>
       <small>Usuario inicial: admin / clave inicial: 1234</small>
-      <span class="app-version">v2026.07.10.3</span>
+      <span class="app-version">v2026.07.11.2</span>
     </form>
   </section>
 
@@ -72,8 +72,14 @@
           <button type="button" data-nav="config-seguridad">Seguridad</button>
         </div>
       </details>
+      <details class="nav-menu" data-menu="ayuda">
+        <summary>Ayuda</summary>
+        <div class="nav-panel">
+          <button type="button" data-nav="manual">Manual de usuario</button>
+        </div>
+      </details>
     </nav>
-    <span class="topbar-version" title="Version del sistema">v2026.07.10.3</span>
+    <span class="topbar-version" title="Version del sistema">v2026.07.11.2</span>
     <button id="btnLogout" type="button" class="logout-button">Salir</button>
   </header>
 
@@ -309,6 +315,28 @@
             </div>
           </div>
           <div id="socioCrudContacto" class="contact-box"></div>
+          <div id="socioCuotasToolbar" class="member-dues-toolbar" hidden>
+            <div class="segmented-controls" aria-label="Filtro de cuotas del socio">
+              <button type="button" data-socio-cuotas-filter="pendiente" class="active">Impagas</button>
+              <button type="button" data-socio-cuotas-filter="pagada">Pagas</button>
+              <button type="button" data-socio-cuotas-filter="todas">Todas</button>
+            </div>
+            <div class="member-paybar">
+              <label>Fecha<input id="socioPagoFecha" type="date"></label>
+              <label>Medio
+                <select id="socioPagoMedio">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </label>
+              <strong id="socioPagoTotal">$0.00</strong>
+              <button type="button" id="btnPagarCuotasSocio" disabled>Pagar seleccionadas</button>
+            </div>
+            <p id="socioCuotasResumen" class="muted-note">Seleccione cuotas impagas para cobrar.</p>
+          </div>
           <div id="socioCrudCuotas" class="cuotas"></div>
         </section>
       </div>
@@ -677,6 +705,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=20260710-version-web"></script>
+  <script src="app.js?v=20260711-manual"></script>
 </body>
 </html>

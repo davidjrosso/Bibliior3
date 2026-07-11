@@ -9,6 +9,8 @@ const state = {
   cobradores: [],
   auditoria: [],
   usuario: '',
+  socioCrudCuotas: [],
+  socioCuotasFiltro: 'pendiente',
   caja: {
     dia: null,
     movimientos: [],
@@ -25,6 +27,7 @@ let adminKeyResolve = null;
 let adminKeyReject = null;
 let authEventsBound = false;
 let pagoAdelantadoSearchTimer = null;
+let cuotasSeleccionadasSocio = new Set();
 
 function periodoSiguiente() {
   const now = new Date();
@@ -66,7 +69,10 @@ async function api(url, options = {}) {
     mostrarLogin();
   }
   if (!response.ok || data.exito === false) {
-    throw new Error(data.error || 'Error de operacion');
+    const error = new Error(data.error || 'Error de operacion');
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
   return data;
 }
@@ -108,7 +114,19 @@ function mostrarSistema() {
 }
 
 function pedirClaveAdmin(motivo) {
-  return Promise.resolve(window.prompt(`${motivo || 'Esta accion requiere permiso.'}\n\nIngrese clave de administrador:`) || '');
+  const dialog = $('#modalAdminClave');
+  const form = $('#formAdminClave');
+  if (!dialog || !form) {
+    return Promise.resolve(window.prompt(`${motivo || 'Esta accion requiere permiso.'}\n\nIngrese clave de administrador:`) || '');
+  }
+  return new Promise((resolve) => {
+    adminKeyResolve = resolve;
+    adminKeyReject = null;
+    $('#adminClaveMotivo').textContent = motivo || 'Esta accion requiere permiso.';
+    form.reset();
+    abrir(dialog);
+    setTimeout(() => form.clave.focus(), 60);
+  });
 }
 
 async function apiAdmin(url, options = {}, motivo = '') {
@@ -121,6 +139,16 @@ async function apiAdmin(url, options = {}, motivo = '') {
       'X-Admin-Key': clave
     }
   });
+}
+
+async function apiConClaveSiHaceFalta(url, options = {}, motivo = '') {
+  try {
+    return await api(url, options);
+  } catch (error) {
+    const requiereClave = error.status === 403 && String(error.message || '').toLowerCase().includes('clave');
+    if (!requiereClave) throw error;
+    return apiAdmin(url, options, motivo || error.message);
+  }
 }
 
 function toast(message) {
@@ -375,11 +403,38 @@ async function borrarCobrador(id) {
 }
 
 async function pagarCuota(cuotaId) {
-  const request = { method: 'POST', body: '{}' };
-  if (state.caja.dia && Number(state.caja.dia.cerrado) === 1) {
-    return apiAdmin(`/api/cuotas/${cuotaId}/pagar`, request, 'Autorizar pago con caja cerrada.');
+  const request = {
+    method: 'POST',
+    body: JSON.stringify({ fecha_pago: fechaActual(), medio_pago: 'efectivo' })
+  };
+  return apiConClaveSiHaceFalta(`/api/cuotas/${cuotaId}/pagar`, request, 'Autorizar pago con caja cerrada.');
+}
+
+async function pagarCuotasSocioSeleccionadas() {
+  const ids = Array.from(cuotasSeleccionadasSocio);
+  if (!ids.length) {
+    toast('Seleccione al menos una cuota impaga');
+    return;
   }
-  return api(`/api/cuotas/${cuotaId}/pagar`, request);
+  const fechaPago = $('#socioPagoFecha').value || fechaActual();
+  const medioPago = $('#socioPagoMedio').value || 'efectivo';
+  const total = state.socioCrudCuotas
+    .filter(cuota => cuotasSeleccionadasSocio.has(Number(cuota.id)))
+    .reduce((acc, cuota) => acc + Number(cuota.monto || 0), 0);
+  const cajaMsg = medioPago === 'efectivo'
+    ? 'El efectivo se registrara en caja diaria.'
+    : 'Este medio no mueve caja diaria.';
+  if (!confirm(`Cobrar ${ids.length} cuota(s) por ${money(total)}?\n\n${cajaMsg}`)) return;
+  const request = {
+    method: 'POST',
+    body: JSON.stringify({ ids, fecha_pago: fechaPago, medio_pago: medioPago })
+  };
+  const result = await apiConClaveSiHaceFalta('/api/cuotas/pagar', request, 'Autorizar pago con caja cerrada.');
+  cuotasSeleccionadasSocio = new Set();
+  await refrescarTodo();
+  if (state.socioCrudId) await cargarSocioEnCrud(state.socioCrudId);
+  await cargarCajaListado();
+  toast(`Cobro registrado: ${result.cuotas_pagadas} cuota(s).`);
 }
 
 async function cargarDashboard() {
@@ -525,30 +580,70 @@ async function cargarSocioEnCrud(id) {
     <span>Email: ${socio.email || '-'}</span>
     <span>Debe ${socio.cuotas_debe} cuota(s) | Adelantadas ${socio.cuotas_adelantadas}</span>
   `;
-  renderCuotasSocioCrud(data.cuotas);
+  state.socioCrudCuotas = data.cuotas || [];
+  cuotasSeleccionadasSocio = new Set();
+  $('#socioCuotasToolbar').hidden = false;
+  if (!$('#socioPagoFecha').value) $('#socioPagoFecha').value = fechaActual();
+  renderCuotasSocioCrud();
   $('#btnSocioBajaCrud').disabled = false;
   $('#btnSocioEditarCrud').disabled = false;
   renderSociosCrud();
 }
 
-function renderCuotasSocioCrud(cuotas) {
+function cuotasSocioFiltradas() {
+  const filtro = state.socioCuotasFiltro || 'pendiente';
+  if (filtro === 'todas') return state.socioCrudCuotas;
+  return state.socioCrudCuotas.filter(cuota => cuota.estado === filtro);
+}
+
+function actualizarResumenPagoSocio() {
+  const seleccionadas = state.socioCrudCuotas.filter(cuota => cuotasSeleccionadasSocio.has(Number(cuota.id)));
+  const total = seleccionadas.reduce((acc, cuota) => acc + Number(cuota.monto || 0), 0);
+  const pendientes = state.socioCrudCuotas.filter(cuota => cuota.estado === 'pendiente');
+  const pagadas = state.socioCrudCuotas.filter(cuota => cuota.estado === 'pagada');
+  $('#socioPagoTotal').textContent = money(total);
+  $('#btnPagarCuotasSocio').disabled = seleccionadas.length === 0;
+  $('#socioCuotasResumen').textContent =
+    `${pendientes.length} impaga(s), ${pagadas.length} paga(s). Seleccionadas ${seleccionadas.length} por ${money(total)}.`;
+}
+
+function renderCuotasSocioCrud() {
   const box = $('#socioCrudCuotas');
+  const cuotas = cuotasSocioFiltradas();
   box.innerHTML = '';
+  document.querySelectorAll('[data-socio-cuotas-filter]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.socioCuotasFilter === state.socioCuotasFiltro);
+  });
   if (!cuotas.length) {
     box.innerHTML = '<div class="empty">Este socio no tiene cuotas.</div>';
+    actualizarResumenPagoSocio();
     return;
   }
   for (const cuota of cuotas) {
     const item = document.createElement('div');
     item.className = `cuota ${cuota.estado}`;
+    const pendiente = cuota.estado === 'pendiente';
+    const checked = cuotasSeleccionadasSocio.has(Number(cuota.id)) ? 'checked' : '';
     item.innerHTML = `
-      <div>
-        <strong>${cuota.periodo}</strong> - $${Number(cuota.monto).toFixed(2)} - ${cuota.estado}
-        <small>${cuota.fecha_pago ? `Pagada el ${cuota.fecha_pago}` : 'Impaga / pendiente'}</small>
+      <div class="dues-check">
+        ${pendiente ? `<input type="checkbox" data-select-cuota-socio="${cuota.id}" ${checked}>` : '<span></span>'}
+        <div>
+          <strong>${cuota.periodo}</strong> - $${Number(cuota.monto).toFixed(2)} - ${cuota.estado}
+          <small>${cuota.fecha_pago ? `Pagada el ${cuota.fecha_pago}` : 'Impaga / pendiente'}</small>
+        </div>
       </div>
     `;
     box.appendChild(item);
   }
+  box.querySelectorAll('[data-select-cuota-socio]').forEach(input => {
+    input.addEventListener('change', () => {
+      const id = Number(input.dataset.selectCuotaSocio);
+      if (input.checked) cuotasSeleccionadasSocio.add(id);
+      else cuotasSeleccionadasSocio.delete(id);
+      actualizarResumenPagoSocio();
+    });
+  });
+  actualizarResumenPagoSocio();
 }
 
 async function abrirModalSocio(id = null) {
@@ -973,6 +1068,9 @@ function mostrarPaginaSocios() {
   $('#paginaConfig').hidden = true;
   $('#paginaCaja').hidden = true;
   resetNuevoSocio();
+  state.socioCrudCuotas = [];
+  cuotasSeleccionadasSocio = new Set();
+  $('#socioCuotasToolbar').hidden = true;
   $('#btnSocioBajaCrud').disabled = true;
   $('#btnSocioEditarCrud').disabled = true;
   $('#socioCrudTitulo').textContent = 'Seleccione un socio';
@@ -1119,6 +1217,10 @@ function navegar(action) {
   if (action === 'config-seguridad') {
     mostrarPaginaConfig();
     setTimeout(() => enfocar('#formSeguridad'), 160);
+    return;
+  }
+  if (action === 'manual') {
+    window.open('/manual_usuario.html', '_blank');
   }
 }
 
@@ -1198,6 +1300,15 @@ async function init() {
   $('#btnSocioEditarCrud').addEventListener('click', () => {
     if (state.socioCrudId) abrirModalSocio(state.socioCrudId);
   });
+  document.querySelectorAll('[data-socio-cuotas-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.socioCuotasFiltro = btn.dataset.socioCuotasFilter;
+      renderCuotasSocioCrud();
+    });
+  });
+  $('#btnPagarCuotasSocio').addEventListener('click', () => {
+    pagarCuotasSocioSeleccionadas().catch(error => toast(error.message));
+  });
   $('#btnCajaIngreso').addEventListener('click', () => abrirMovimientoCaja('ingreso'));
   $('#btnCajaEgreso').addEventListener('click', () => abrirMovimientoCaja('egreso'));
   $('#btnCajaActualizar').addEventListener('click', cargarCaja);
@@ -1226,6 +1337,11 @@ async function init() {
   });
   $('#btnAdminCancelar').addEventListener('click', () => {
     cerrarDialogs();
+    if (adminKeyResolve) adminKeyResolve('');
+    adminKeyResolve = null;
+    adminKeyReject = null;
+  });
+  $('#modalAdminClave').addEventListener('cancel', () => {
     if (adminKeyResolve) adminKeyResolve('');
     adminKeyResolve = null;
     adminKeyReject = null;
@@ -1356,7 +1472,7 @@ async function init() {
     if (state.caja.dia && Number(state.caja.dia.cerrado) === 1) {
       await apiAdmin('/api/caja/dia', request, 'Autorizar modificacion de caja cerrada.');
     } else {
-      await api('/api/caja/dia', request);
+      await apiConClaveSiHaceFalta('/api/caja/dia', request, 'Autorizar modificacion de caja cerrada.');
     }
     await cargarCaja();
     await cargarCajaListado();
@@ -1410,7 +1526,7 @@ async function init() {
       if (closed) {
         await apiAdmin('/api/caja/movimientos', request, 'Autorizar movimiento en caja cerrada.');
       } else {
-        await api('/api/caja/movimientos', request);
+        await apiConClaveSiHaceFalta('/api/caja/movimientos', request, 'Autorizar movimiento en caja cerrada.');
       }
       toast('Movimiento cargado');
     }
@@ -1427,10 +1543,7 @@ async function init() {
       return;
     }
     const request = { method: 'POST', body: JSON.stringify(data) };
-    const cajaCerrada = state.caja.dia && state.caja.dia.fecha === data.fecha_pago && Number(state.caja.dia.cerrado) === 1;
-    const result = cajaCerrada
-      ? await apiAdmin('/api/cuotas/adelanto', request, 'Autorizar pago adelantado en caja cerrada.')
-      : await api('/api/cuotas/adelanto', request);
+    const result = await apiConClaveSiHaceFalta('/api/cuotas/adelanto', request, 'Autorizar pago adelantado en caja cerrada.');
     cerrarDialogs();
     await refrescarTodo();
     const cajaMsg = data.medio_pago === 'efectivo' ? ' Ingreso registrado en caja.' : ' No mueve caja diaria.';

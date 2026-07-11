@@ -192,14 +192,51 @@ def eliminar(conn, cuota_id: int) -> None:
         raise LookupError("Cuota no encontrada")
 
 
-def marcar_pagada(conn, cuota_id: int) -> None:
+def marcar_pagada(conn, cuota_id: int, fecha_pago: str | None = None, medio_pago: str = "efectivo") -> None:
+    fecha = fecha_pago or today_iso()
+    if not valid_date(fecha):
+        raise ValueError("Fecha de pago invalida.")
+    if medio_pago not in caja_model.MEDIOS_PAGO:
+        raise ValueError("Medio de pago invalido.")
+    row = conn.execute("SELECT estado FROM cuotas WHERE id = ?", (cuota_id,)).fetchone()
+    if not row:
+        raise LookupError("Cuota no encontrada")
+    if row["estado"] == "pagada":
+        raise ValueError("La cuota ya esta pagada.")
     cursor = conn.execute(
         "UPDATE cuotas SET estado = 'pagada', fecha_pago = ?, actualizado_en = ? WHERE id = ?",
-        (today_iso(), now_iso(), cuota_id),
+        (fecha, now_iso(), cuota_id),
     )
     if cursor.rowcount == 0:
         raise LookupError("Cuota no encontrada")
-    caja_model.registrar_cobro_cuota(conn, cuota_id)
+    caja_model.registrar_cobro_cuota(conn, cuota_id, medio_pago)
+
+
+def marcar_pagadas(conn, data: dict) -> dict:
+    ids = list(dict.fromkeys(int(cuota_id) for cuota_id in data.get("ids", [])))
+    if not ids:
+        raise ValueError("Seleccione al menos una cuota para pagar.")
+    fecha_pago = str(data.get("fecha_pago", "")).strip() or today_iso()
+    medio_pago = str(data.get("medio_pago", "efectivo")).strip()
+    if not valid_date(fecha_pago):
+        raise ValueError("Fecha de pago invalida.")
+    if medio_pago not in caja_model.MEDIOS_PAGO:
+        raise ValueError("Medio de pago invalido.")
+    placeholders = ",".join("?" for _ in ids)
+    rows = conn.execute(
+        f"SELECT id, periodo, estado FROM cuotas WHERE id IN ({placeholders})",
+        ids,
+    ).fetchall()
+    if len(rows) != len(set(ids)):
+        raise LookupError("Una o mas cuotas no fueron encontradas.")
+    ya_pagadas = [row["periodo"] for row in rows if row["estado"] == "pagada"]
+    if ya_pagadas:
+        raise ValueError(f"No se puede cobrar: ya estan pagadas las cuota(s) {', '.join(ya_pagadas)}.")
+    pagadas = 0
+    for cuota_id in ids:
+        marcar_pagada(conn, cuota_id, fecha_pago, medio_pago)
+        pagadas += 1
+    return {"cuotas_pagadas": pagadas, "ids": ids}
 
 
 def pago_adelantado(conn, data: dict) -> dict:
@@ -214,18 +251,38 @@ def pago_adelantado(conn, data: dict) -> dict:
         raise ValueError("La cantidad de meses debe estar entre 1 y 60.")
     if not valid_date(fecha_pago):
         raise ValueError("Fecha de pago invalida.")
+    if medio_pago not in caja_model.MEDIOS_PAGO:
+        raise ValueError("Medio de pago invalido.")
     socio = socio_model.obtener(conn, socio_id)
     if not socio or socio["fecha_baja"]:
         raise ValueError("Socio activo no encontrado.")
+    periodos = [add_months(desde_periodo, offset) for offset in range(cantidad)]
+    placeholders = ",".join("?" for _ in periodos)
+    pagadas_existentes = conn.execute(
+        f"""
+        SELECT periodo
+        FROM cuotas
+        WHERE socio_id = ?
+          AND estado = 'pagada'
+          AND periodo IN ({placeholders})
+        ORDER BY periodo
+        """,
+        [socio_id, *periodos],
+    ).fetchall()
+    if pagadas_existentes:
+        periodos_pagados = ", ".join(row["periodo"] for row in pagadas_existentes)
+        raise ValueError(
+            "No se puede hacer el pago adelantado: ya hay cuota(s) pagada(s) en "
+            f"estos periodo(s): {periodos_pagados}. Revise el socio y elija otro rango."
+        )
     creadas = 0
     pagadas = 0
     ids = []
     timestamp = now_iso()
-    for offset in range(cantidad):
-        periodo = add_months(desde_periodo, offset)
+    for periodo in periodos:
         monto = config_model.cuota_monto(conn, socio["estado"])
         row = conn.execute(
-            "SELECT id FROM cuotas WHERE socio_id = ? AND periodo = ?",
+            "SELECT id, estado FROM cuotas WHERE socio_id = ? AND periodo = ?",
             (socio_id, periodo),
         ).fetchone()
         if row:
