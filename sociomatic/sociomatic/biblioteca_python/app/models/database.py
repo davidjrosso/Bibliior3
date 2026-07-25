@@ -284,6 +284,7 @@ def _migrar_cobros_cuotas_pagadas(conn: sqlite3.Connection) -> None:
         FROM cuotas c
         LEFT JOIN caja_movimientos m ON m.cuota_id = c.id
         WHERE c.estado = 'pagada'
+          AND c.observacion NOT LIKE 'Importado SPSoft%'
           AND m.id IS NULL
         """
     ).fetchall()
