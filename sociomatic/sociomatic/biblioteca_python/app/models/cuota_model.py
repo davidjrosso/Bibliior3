@@ -1,5 +1,5 @@
 from app.models import caja_model, config_model, socio_model
-from app.models.helpers import add_months, next_period, now_iso, today_iso, valid_date, valid_period
+from app.models.helpers import add_months, next_period, now_iso, parse_decimal, today_iso, valid_date, valid_period
 from app.settings import COBRADORES
 
 
@@ -98,7 +98,7 @@ def crear(conn, data: dict) -> int:
     socio = socio_model.obtener(conn, socio_id)
     if not socio or socio["fecha_baja"]:
         raise ValueError("Socio activo no encontrado.")
-    monto = float(data.get("monto") or config_model.cuota_monto(conn, socio["estado"]))
+    monto = parse_decimal(data.get("monto") or config_model.cuota_monto(conn, socio["estado"]))
     timestamp = now_iso()
     cursor = conn.execute(
         """
@@ -158,7 +158,7 @@ def actualizar(conn, cuota_id: int, data: dict) -> None:
     periodo = data.get("periodo")
     if not valid_period(periodo):
         raise ValueError("Periodo invalido. Use AAAA-MM.")
-    monto = float(data.get("monto"))
+    monto = parse_decimal(data.get("monto"))
     if monto < 0:
         raise ValueError("El monto no puede ser negativo.")
     estado = data.get("estado", "pendiente")

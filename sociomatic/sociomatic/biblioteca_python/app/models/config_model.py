@@ -1,5 +1,5 @@
 from app.settings import COBRADORES
-from app.models.helpers import now_iso
+from app.models.helpers import now_iso, parse_decimal
 
 
 CONFIG_DEFAULTS = {
@@ -119,7 +119,7 @@ def _slug(value: str) -> str:
 
 def crear_tipo_socio(conn, data: dict) -> dict:
     nombre = str(data.get("nombre", "")).strip()
-    monto = float(data.get("monto", 0))
+    monto = parse_decimal(data.get("monto", 0))
     if not nombre:
         raise ValueError("El nombre del tipo de socio es obligatorio.")
     if monto < 0:
@@ -138,7 +138,7 @@ def crear_tipo_socio(conn, data: dict) -> dict:
 
 def actualizar_tipo_socio(conn, tipo_id: str, data: dict) -> None:
     nombre = str(data.get("nombre", "")).strip()
-    monto = float(data.get("monto", 0))
+    monto = parse_decimal(data.get("monto", 0))
     activo = 1 if str(data.get("activo", "1")) in {"1", "true", "on", "si"} else 0
     if not nombre:
         raise ValueError("El nombre del tipo de socio es obligatorio.")

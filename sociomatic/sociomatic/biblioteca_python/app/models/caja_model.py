@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from app.models.helpers import now_iso, today_iso
+from app.models.helpers import now_iso, parse_decimal, today_iso
 
 
 MEDIOS_PAGO = {"efectivo", "transferencia", "tarjeta", "cheque", "otro"}
@@ -127,7 +127,7 @@ def _dias_antes(fecha: str, dias: int) -> str:
 def actualizar_dia(conn, data: dict) -> None:
     fecha = str(data.get("fecha") or today_iso()).strip()
     asegurar_dia(conn, fecha)
-    saldo_inicial = float(data.get("saldo_inicial") or 0)
+    saldo_inicial = parse_decimal(data.get("saldo_inicial") or 0)
     cerrado = 1 if str(data.get("cerrado", "0")) in {"1", "true", "on", "si"} else 0
     conn.execute(
         """
@@ -146,7 +146,7 @@ def validar_movimiento(data: dict) -> dict:
     tipo = str(data.get("tipo", "")).strip()
     if tipo not in TIPOS:
         raise ValueError("Tipo de movimiento invalido.")
-    monto = float(data.get("monto") or 0)
+    monto = parse_decimal(data.get("monto") or 0)
     if monto <= 0:
         raise ValueError("El monto debe ser mayor a cero.")
     medio_pago = str(data.get("medio_pago", "efectivo")).strip()

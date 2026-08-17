@@ -1,3 +1,12 @@
+def format_number(value) -> str:
+    return f"{int(value):,}".replace(",", ".")
+
+
+def format_money(value) -> str:
+    text = f"{float(value):,.2f}"
+    return "$ " + text.replace(",", "_").replace(".", ",").replace("_", ".")
+
+
 def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
     cards = []
     for row in rows:
@@ -8,7 +17,7 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
             <span>Socio #{row['nro_socio']} - DNI {row['dni']}</span>
             <span>{socio}</span>
             <span>{row['direccion']} - {row['localidad']}</span>
-            <span>Monto: ${row['monto']:.2f}</span>
+            <span>Monto: {format_money(row['monto'])}</span>
         </div>
         """
         cards.append(f"<section class='cupon'>{base}<div class='corte'></div>{base}</section>")
@@ -43,7 +52,7 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
 </head>
 <body>
   <div class="barra">
-    <div><strong>Periodo:</strong> {periodo} | <strong>Cobrador:</strong> {cobrador_nombre} | <strong>Total:</strong> {total}</div>
+    <div><strong>Periodo:</strong> {periodo} | <strong>Cobrador:</strong> {cobrador_nombre} | <strong>Total:</strong> {format_number(total)}</div>
     <button onclick="window.print()">Imprimir</button>
   </div>
   <main class="hoja">{body}</main>
@@ -62,8 +71,8 @@ def render_morosos(rows, limite: int) -> str:
               <td>{row['dni']}</td>
               <td>{row['telefono'] or '-'}</td>
               <td>{row['direccion']} - {row['localidad']}</td>
-              <td>{row['cuotas_impagas']}</td>
-              <td>${float(row['deuda']):.2f}</td>
+              <td>{format_number(row['cuotas_impagas'])}</td>
+              <td>{format_money(row['deuda'])}</td>
             </tr>
             """
         )
@@ -84,7 +93,7 @@ def render_morosos(rows, limite: int) -> str:
 </head>
 <body>
   <div class="barra">
-    <div><strong>Socios morosos</strong> | Mas de {limite} cuota(s) impaga(s) | Total: {len(rows)}</div>
+    <div><strong>Socios morosos</strong> | Mas de {format_number(limite)} cuota(s) impaga(s) | Total: {format_number(len(rows))}</div>
     <button onclick="window.print()">Imprimir</button>
   </div>
   <table>

@@ -14,6 +14,16 @@ def now_iso() -> str:
     return datetime.now().replace(microsecond=0).isoformat(sep=" ")
 
 
+def parse_decimal(value) -> float:
+    text = str(value if value is not None else "").strip()
+    if not text:
+        return 0.0
+    text = text.replace("$", "").replace(" ", "")
+    if "," in text:
+        text = text.replace(".", "").replace(",", ".")
+    return float(text)
+
+
 def current_period() -> str:
     today = date.today()
     return f"{today.year:04d}-{today.month:02d}"

@@ -168,8 +168,27 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+const formatoNumero = new Intl.NumberFormat('es-AR');
+const formatoDinero = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
+function number(value) {
+  return formatoNumero.format(Number(value || 0));
+}
+
+function decimalInput(value) {
+  return Number(value || 0).toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
 function money(value) {
-  return `$${Number(value || 0).toFixed(2)}`;
+  return formatoDinero.format(Number(value || 0)).replace(/\s/g, ' ');
 }
 
 function resetNuevoSocio() {
@@ -365,7 +384,7 @@ function editarTipoSocio(id) {
   const form = $('#formTipoSocio');
   form.id.value = tipo.id;
   form.nombre.value = tipo.nombre;
-  form.monto.value = tipo.monto;
+  form.monto.value = decimalInput(tipo.monto);
   form.activo.checked = Number(tipo.activo) === 1;
   $('#tipoSocioTitulo').textContent = `Editar ${tipo.nombre}`;
   abrir($('#modalTipoSocio'));
@@ -424,7 +443,7 @@ async function pagarCuotasSocioSeleccionadas() {
   const cajaMsg = medioPago === 'efectivo'
     ? 'El efectivo se registrara en caja diaria.'
     : 'Este medio no mueve caja diaria.';
-  if (!confirm(`Cobrar ${ids.length} cuota(s) por ${money(total)}?\n\n${cajaMsg}`)) return;
+  if (!confirm(`Cobrar ${number(ids.length)} cuota(s) por ${money(total)}?\n\n${cajaMsg}`)) return;
   const request = {
     method: 'POST',
     body: JSON.stringify({ ids, fecha_pago: fechaPago, medio_pago: medioPago })
@@ -434,22 +453,22 @@ async function pagarCuotasSocioSeleccionadas() {
   await refrescarTodo();
   if (state.socioCrudId) await cargarSocioEnCrud(state.socioCrudId);
   await cargarCajaListado();
-  toast(`Cobro registrado: ${result.cuotas_pagadas} cuota(s).`);
+  toast(`Cobro registrado: ${number(result.cuotas_pagadas)} cuota(s).`);
 }
 
 async function cargarDashboard() {
   const periodo = $('#formDashboard').periodo.value || periodoSiguiente();
   const data = await api(`/api/dashboard?periodo=${encodeURIComponent(periodo)}`);
   const dashboard = data.dashboard;
-  $('#dashSociosTotal').textContent = dashboard.socios.total;
-  $('#dashSociosTipo').textContent = `${dashboard.socios.activos} / ${dashboard.socios.jubilados}`;
-  $('#dashCuotasPagadas').textContent = dashboard.cuotas_periodo.pagadas;
-  $('#dashCuotasPendientes').textContent = dashboard.cuotas_periodo.pendientes;
+  $('#dashSociosTotal').textContent = number(dashboard.socios.total);
+  $('#dashSociosTipo').textContent = `${number(dashboard.socios.activos)} / ${number(dashboard.socios.jubilados)}`;
+  $('#dashCuotasPagadas').textContent = number(dashboard.cuotas_periodo.pagadas);
+  $('#dashCuotasPendientes').textContent = number(dashboard.cuotas_periodo.pendientes);
   $('#dashRecaudado').textContent = money(dashboard.cuotas_periodo.recaudado);
   $('#dashPendiente').textContent = money(dashboard.cuotas_periodo.pendiente);
   $('#dashGlobal').textContent =
-    `${dashboard.cuotas_global.total} cuotas: ${dashboard.cuotas_global.pagadas} pagas, ` +
-    `${dashboard.cuotas_global.pendientes} impagas. Recaudado ${money(dashboard.cuotas_global.recaudado)}.`;
+    `${number(dashboard.cuotas_global.total)} cuotas: ${number(dashboard.cuotas_global.pagadas)} pagas, ` +
+    `${number(dashboard.cuotas_global.pendientes)} impagas. Recaudado ${money(dashboard.cuotas_global.recaudado)}.`;
 
   const cobradores = $('#dashCobradores');
   cobradores.innerHTML = '';
@@ -459,7 +478,7 @@ async function cargarDashboard() {
   }
   for (const item of dashboard.por_cobrador) {
     const row = document.createElement('div');
-    row.innerHTML = `<strong>${item.cobrador} - ${item.nombre}</strong><span>${item.cuotas} cuotas | ${money(item.recaudado)} recaudado | ${money(item.pendiente)} pendiente</span>`;
+    row.innerHTML = `<strong>${item.cobrador} - ${item.nombre}</strong><span>${number(item.cuotas)} cuotas | ${money(item.recaudado)} recaudado | ${money(item.pendiente)} pendiente</span>`;
     cobradores.appendChild(row);
   }
 }
@@ -513,10 +532,10 @@ function renderControlGeneracion(control) {
   box.innerHTML = `
     <strong>${control.puede_generar ? 'Listo para generar' : 'No se puede generar'}</strong>
     <span>Periodo: ${control.periodo}</span>
-    <span>Periodo anterior requerido: ${control.periodo_anterior} (${control.cuotas_anterior} de ${control.socios_anterior_objetivo} esperadas)</span>
-    <span>Socios alcanzados: ${control.socios_objetivo}</span>
-    <span>Cuotas ya existentes: ${control.cuotas_periodo}</span>
-    <span>Cuotas estimadas a crear: ${control.faltantes_estimadas}</span>
+    <span>Periodo anterior requerido: ${control.periodo_anterior} (${number(control.cuotas_anterior)} de ${number(control.socios_anterior_objetivo)} esperadas)</span>
+    <span>Socios alcanzados: ${number(control.socios_objetivo)}</span>
+    <span>Cuotas ya existentes: ${number(control.cuotas_periodo)}</span>
+    <span>Cuotas estimadas a crear: ${number(control.faltantes_estimadas)}</span>
     ${control.motivo ? `<small>${control.motivo}</small>` : ''}
   `;
 }
@@ -540,8 +559,8 @@ function renderSocios() {
       <td>${socio.dni}<br><small>${socio.telefono || ''} ${socio.email || ''}</small></td>
       <td>${tipoSocioTexto(socio.estado)}</td>
       <td>${socio.cobrador} - ${socio.cobrador_texto}</td>
-      <td>${socio.cuotas_debe}</td>
-      <td>${socio.cuotas_adelantadas}</td>
+      <td>${number(socio.cuotas_debe)}</td>
+      <td>${number(socio.cuotas_adelantadas)}</td>
     `;
     tr.addEventListener('click', () => seleccionarSocio(socio.id));
     body.appendChild(tr);
@@ -578,7 +597,7 @@ async function cargarSocioEnCrud(id) {
     <strong>Contacto</strong>
     <span>Telefono: ${socio.telefono || '-'}</span>
     <span>Email: ${socio.email || '-'}</span>
-    <span>Debe ${socio.cuotas_debe} cuota(s) | Adelantadas ${socio.cuotas_adelantadas}</span>
+    <span>Debe ${number(socio.cuotas_debe)} cuota(s) | Adelantadas ${number(socio.cuotas_adelantadas)}</span>
   `;
   state.socioCrudCuotas = data.cuotas || [];
   cuotasSeleccionadasSocio = new Set();
@@ -604,7 +623,7 @@ function actualizarResumenPagoSocio() {
   $('#socioPagoTotal').textContent = money(total);
   $('#btnPagarCuotasSocio').disabled = seleccionadas.length === 0;
   $('#socioCuotasResumen').textContent =
-    `${pendientes.length} impaga(s), ${pagadas.length} paga(s). Seleccionadas ${seleccionadas.length} por ${money(total)}.`;
+    `${number(pendientes.length)} impaga(s), ${number(pagadas.length)} paga(s). Seleccionadas ${number(seleccionadas.length)} por ${money(total)}.`;
 }
 
 function renderCuotasSocioCrud() {
@@ -628,7 +647,7 @@ function renderCuotasSocioCrud() {
       <div class="dues-check">
         ${pendiente ? `<input type="checkbox" data-select-cuota-socio="${cuota.id}" ${checked}>` : '<span></span>'}
         <div>
-          <strong>${cuota.periodo}</strong> - $${Number(cuota.monto).toFixed(2)} - ${cuota.estado}
+          <strong>${cuota.periodo}</strong> - ${money(cuota.monto)} - ${cuota.estado}
           <small>${cuota.fecha_pago ? `Pagada el ${cuota.fecha_pago}` : 'Impaga / pendiente'}</small>
         </div>
       </div>
@@ -672,7 +691,7 @@ async function seleccionarSocio(id) {
   $('#detalleVacio').hidden = true;
   $('#detalle').hidden = false;
   $('#detalleNombre').textContent = `#${socio.nro_socio} ${socio.apellido}, ${socio.nombre}`;
-  $('#detalleMeta').textContent = `${socio.direccion} | Debe ${socio.cuotas_debe} cuota(s) | Adelantadas ${socio.cuotas_adelantadas}`;
+  $('#detalleMeta').textContent = `${socio.direccion} | Debe ${number(socio.cuotas_debe)} cuota(s) | Adelantadas ${number(socio.cuotas_adelantadas)}`;
 
   const form = $('#formSocio');
   for (const field of ['nro_socio', 'dni', 'apellido', 'nombre', 'telefono', 'email', 'direccion', 'barrio', 'localidad', 'fecha_nacimiento', 'fecha_alta', 'ocupacion', 'estado', 'cobrador']) {
@@ -696,7 +715,7 @@ function renderCuotas(cuotas) {
       : `<button data-pagar="${cuota.id}">Marcar pagada</button>`;
     item.innerHTML = `
       <div>
-        <strong>${cuota.periodo}</strong> - $${Number(cuota.monto).toFixed(2)} - ${cuota.estado}
+        <strong>${cuota.periodo}</strong> - ${money(cuota.monto)} - ${cuota.estado}
         <small>${cuota.fecha_pago ? `Pagada el ${cuota.fecha_pago}` : 'Pendiente de pago'}</small>
       </div>
       <div>${accion}</div>
@@ -744,7 +763,7 @@ function renderTablaCuotas() {
       <td>${cuota.periodo}</td>
       <td>#${cuota.nro_socio} ${cuota.socio}<br><small>${cuota.dni} - ${cuota.direccion}</small></td>
       <td>${cuota.cobrador} - ${cuota.cobrador_texto}</td>
-      <td>$${Number(cuota.monto).toFixed(2)}</td>
+      <td>${money(cuota.monto)}</td>
       <td>${cuota.estado}</td>
       <td>${cuota.fecha_pago || '-'}</td>
       <td class="row-actions">
@@ -797,10 +816,10 @@ function renderResumenCuotas() {
   const pendientes = state.cuotas.filter(cuota => cuota.estado === 'pendiente');
   const pagadas = state.cuotas.filter(cuota => cuota.estado === 'pagada');
   const montoPendiente = pendientes.reduce((acc, cuota) => acc + Number(cuota.monto || 0), 0);
-  $('#cuotasTotal').textContent = total;
-  $('#cuotasPendientes').textContent = pendientes.length;
-  $('#cuotasPagadas').textContent = pagadas.length;
-  $('#cuotasMontoPendiente').textContent = `$${montoPendiente.toFixed(2)}`;
+  $('#cuotasTotal').textContent = number(total);
+  $('#cuotasPendientes').textContent = number(pendientes.length);
+  $('#cuotasPagadas').textContent = number(pagadas.length);
+  $('#cuotasMontoPendiente').textContent = money(montoPendiente);
 }
 
 function renderMorosos() {
@@ -818,7 +837,7 @@ function renderMorosos() {
       <td>${socio.apellido}, ${socio.nombre}<br><small>${socio.dni}</small></td>
       <td>${socio.telefono || '-'}<br><small>${socio.email || ''}</small></td>
       <td>${socio.cobrador} - ${socio.cobrador_texto}</td>
-      <td>${socio.cuotas_impagas}</td>
+      <td>${number(socio.cuotas_impagas)}</td>
       <td>${money(socio.deuda)}</td>
     `;
     body.appendChild(tr);
@@ -927,14 +946,14 @@ function renderCaja() {
   const form = $('#formCajaDia');
   if (!form || !state.caja.dia) return;
   form.fecha.value = state.caja.dia.fecha;
-  form.saldo_inicial.value = state.caja.dia.saldo_inicial;
+  form.saldo_inicial.value = decimalInput(state.caja.dia.saldo_inicial);
   form.observacion.value = state.caja.dia.observacion || '';
   form.cerrado.checked = Number(state.caja.dia.cerrado) === 1;
   $('#cajaSaldoInicial').textContent = money(state.caja.resumen.saldo_inicial);
   $('#cajaIngresos').textContent = money(state.caja.resumen.ingresos);
   $('#cajaEgresos').textContent = money(state.caja.resumen.egresos);
   $('#cajaSaldoFinal').textContent = money(state.caja.resumen.saldo_final);
-  $('#cajaCantidad').textContent = `${state.caja.resumen.cantidad_movimientos} movimiento(s) de efectivo del dia.`;
+  $('#cajaCantidad').textContent = `${number(state.caja.resumen.cantidad_movimientos)} movimiento(s) de efectivo del dia.`;
 
   const body = $('#cajaMovimientosBody');
   body.innerHTML = '';
@@ -982,7 +1001,7 @@ function renderCajaListado() {
   $('#cajaListadoIngresos').textContent = money(resumen.ingresos);
   $('#cajaListadoEgresos').textContent = money(resumen.egresos);
   $('#cajaListadoNeto').textContent = money(resumen.neto);
-  $('#cajaListadoDias').textContent = resumen.dias || 0;
+  $('#cajaListadoDias').textContent = number(resumen.dias || 0);
   body.innerHTML = '';
   if (!state.cajaListado.dias.length) {
     body.innerHTML = '<tr><td colspan="7">No hay dias de caja cargados para este rango.</td></tr>';
@@ -996,7 +1015,7 @@ function renderCajaListado() {
       <td>${money(dia.ingresos)}</td>
       <td>${money(dia.egresos)}</td>
       <td><strong>${money(dia.saldo_final)}</strong></td>
-      <td>${dia.movimientos}</td>
+      <td>${number(dia.movimientos)}</td>
       <td>${Number(dia.cerrado) === 1 ? 'Cerrada' : 'Abierta'}</td>
     `;
     tr.addEventListener('click', async () => {
@@ -1022,7 +1041,7 @@ function abrirMovimientoCaja(tipo, id = null) {
     form.fecha.value = movimiento.fecha;
     form.tipo.value = movimiento.tipo;
     form.concepto.value = movimiento.concepto;
-    form.monto.value = movimiento.monto;
+    form.monto.value = decimalInput(movimiento.monto);
     form.medio_pago.value = movimiento.medio_pago;
     form.descripcion.value = movimiento.descripcion || '';
     form.referencia.value = movimiento.referencia || '';
@@ -1037,7 +1056,7 @@ function abrirEditorCuota(id) {
   const form = $('#formEditarCuota');
   form.id.value = cuota.id;
   form.periodo.value = cuota.periodo;
-  form.monto.value = cuota.monto;
+  form.monto.value = decimalInput(cuota.monto);
   form.estado.value = cuota.estado;
   form.fecha_pago.value = cuota.fecha_pago || '';
   form.observacion.value = cuota.observacion || '';
@@ -1430,17 +1449,17 @@ async function init() {
     }
     const mensaje =
       `Va a generar cuotas para ${control.periodo}.\n\n` +
-      `Periodo anterior requerido: ${control.periodo_anterior} (${control.cuotas_anterior} de ${control.socios_anterior_objetivo} esperadas)\n` +
-      `Socios alcanzados: ${control.socios_objetivo}\n` +
-      `Cuotas ya existentes en el periodo: ${control.cuotas_periodo}\n` +
-      `Cuotas estimadas a crear: ${control.faltantes_estimadas}\n\n` +
+      `Periodo anterior requerido: ${control.periodo_anterior} (${number(control.cuotas_anterior)} de ${number(control.socios_anterior_objetivo)} esperadas)\n` +
+      `Socios alcanzados: ${number(control.socios_objetivo)}\n` +
+      `Cuotas ya existentes en el periodo: ${number(control.cuotas_periodo)}\n` +
+      `Cuotas estimadas a crear: ${number(control.faltantes_estimadas)}\n\n` +
       'Confirma la generacion?';
     if (!confirm(mensaje)) return;
     const result = await api('/api/cuotas/generar', { method: 'POST', body: JSON.stringify(data) });
     $('#formFiltroCuotas').periodo.value = result.periodo;
     await refrescarTodo();
     await cargarControlGeneracion();
-    toast(`Generadas ${result.cuotas_creadas} cuota(s) para ${result.periodo}`);
+    toast(`Generadas ${number(result.cuotas_creadas)} cuota(s) para ${result.periodo}`);
   });
 
   $('#formImprimir').addEventListener('submit', (event) => {
@@ -1547,7 +1566,7 @@ async function init() {
     cerrarDialogs();
     await refrescarTodo();
     const cajaMsg = data.medio_pago === 'efectivo' ? ' Ingreso registrado en caja.' : ' No mueve caja diaria.';
-    toast(`Pago adelantado: ${result.cuotas_pagadas} cuota(s) pagada(s).${cajaMsg}`);
+    toast(`Pago adelantado: ${number(result.cuotas_pagadas)} cuota(s) pagada(s).${cajaMsg}`);
   });
 
   $('#formTipoSocio').addEventListener('submit', async (event) => {

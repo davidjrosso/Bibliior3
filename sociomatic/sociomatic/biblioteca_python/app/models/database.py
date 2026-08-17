@@ -244,6 +244,7 @@ def _migrar_socios_sin_checks(conn: sqlite3.Connection) -> None:
 
 
 def _migrar_config_vieja_a_catalogos(conn: sqlite3.Connection) -> None:
+    from app.models.helpers import parse_decimal
     from app.models.helpers import now_iso
 
     flag = conn.execute(
@@ -256,12 +257,12 @@ def _migrar_config_vieja_a_catalogos(conn: sqlite3.Connection) -> None:
     if "monto_activo" in config:
         conn.execute(
             "UPDATE tipos_socio SET monto = ?, actualizado_en = ? WHERE id = 'activo'",
-            (float(config["monto_activo"]), now_iso()),
+            (parse_decimal(config["monto_activo"]), now_iso()),
         )
     if "monto_jubilado" in config:
         conn.execute(
             "UPDATE tipos_socio SET monto = ?, actualizado_en = ? WHERE id = 'jubilado'",
-            (float(config["monto_jubilado"]), now_iso()),
+            (parse_decimal(config["monto_jubilado"]), now_iso()),
         )
     for number in COBRADORES:
         key = f"cobrador_{number}"

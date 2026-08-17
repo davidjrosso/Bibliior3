@@ -114,11 +114,11 @@
         </div>
         <div class="metric money">
           <span>Monto recaudado</span>
-          <strong id="dashRecaudado">$0.00</strong>
+          <strong id="dashRecaudado">$ 0,00</strong>
         </div>
         <div class="metric money">
           <span>Monto pendiente</span>
-          <strong id="dashPendiente">$0.00</strong>
+          <strong id="dashPendiente">$ 0,00</strong>
         </div>
       </div>
       <div class="dashboard-lower">
@@ -167,7 +167,7 @@
           <div><strong id="cuotasTotal">0</strong><span>Total</span></div>
           <div><strong id="cuotasPendientes">0</strong><span>Pendientes</span></div>
           <div><strong id="cuotasPagadas">0</strong><span>Pagadas</span></div>
-          <div><strong id="cuotasMontoPendiente">$0.00</strong><span>Monto pendiente</span></div>
+          <div><strong id="cuotasMontoPendiente">$ 0,00</strong><span>Monto pendiente</span></div>
         </div>
         <form id="formFiltroCuotas" class="filters cuotas-filters">
           <input name="q" type="search" placeholder="Socio, nro., DNI o direccion">
@@ -332,7 +332,7 @@
                   <option value="otro">Otro</option>
                 </select>
               </label>
-              <strong id="socioPagoTotal">$0.00</strong>
+              <strong id="socioPagoTotal">$ 0,00</strong>
               <button type="button" id="btnPagarCuotasSocio" disabled>Pagar seleccionadas</button>
             </div>
             <p id="socioCuotasResumen" class="muted-note">Seleccione cuotas impagas para cobrar.</p>
@@ -469,17 +469,17 @@
 
       <form id="formCajaDia" class="caja-day-form">
         <label>Fecha<input name="fecha" type="date" required></label>
-        <label>Saldo inicial<input name="saldo_inicial" type="number" step="0.01" required></label>
+        <label>Saldo inicial<input name="saldo_inicial" type="text" inputmode="decimal" required></label>
         <label class="wide">Observacion<input name="observacion" placeholder="Detalle del dia, arqueo, aclaraciones"></label>
         <label class="check-label"><input name="cerrado" type="checkbox"> Caja cerrada</label>
         <button>Guardar dia</button>
       </form>
 
       <div class="summary-grid caja-summary">
-        <div><strong id="cajaSaldoInicial">$0.00</strong><span>Saldo inicial</span></div>
-        <div><strong id="cajaIngresos">$0.00</strong><span>Ingresos</span></div>
-        <div><strong id="cajaEgresos">$0.00</strong><span>Egresos</span></div>
-        <div><strong id="cajaSaldoFinal">$0.00</strong><span>Saldo final</span></div>
+        <div><strong id="cajaSaldoInicial">$ 0,00</strong><span>Saldo inicial</span></div>
+        <div><strong id="cajaIngresos">$ 0,00</strong><span>Ingresos</span></div>
+        <div><strong id="cajaEgresos">$ 0,00</strong><span>Egresos</span></div>
+        <div><strong id="cajaSaldoFinal">$ 0,00</strong><span>Saldo final</span></div>
       </div>
 
       <section class="caja-list">
@@ -520,9 +520,9 @@
           </form>
         </div>
         <div class="summary-grid caja-listado-summary">
-          <div><strong id="cajaListadoIngresos">$0.00</strong><span>Ingresos efectivo</span></div>
-          <div><strong id="cajaListadoEgresos">$0.00</strong><span>Egresos efectivo</span></div>
-          <div><strong id="cajaListadoNeto">$0.00</strong><span>Neto</span></div>
+          <div><strong id="cajaListadoIngresos">$ 0,00</strong><span>Ingresos efectivo</span></div>
+          <div><strong id="cajaListadoEgresos">$ 0,00</strong><span>Egresos efectivo</span></div>
+          <div><strong id="cajaListadoNeto">$ 0,00</strong><span>Neto</span></div>
           <div><strong id="cajaListadoDias">0</strong><span>Dias listados</span></div>
         </div>
         <div class="table-wrap caja-table">
@@ -589,7 +589,7 @@
       <h2>Modificar cuota</h2>
       <input name="id" type="hidden">
       <label>Periodo<input name="periodo" type="month" required></label>
-      <label>Monto<input name="monto" type="number" step="0.01" required></label>
+      <label>Monto<input name="monto" type="text" inputmode="decimal" required></label>
       <label>Estado
         <select name="estado">
           <option value="pendiente">Pendiente</option>
@@ -610,7 +610,7 @@
       <h2 id="tipoSocioTitulo">Nuevo tipo de socio</h2>
       <input name="id" type="hidden">
       <label>Nombre<input name="nombre" required></label>
-      <label>Valor de cuota<input name="monto" type="number" step="0.01" min="0" required></label>
+      <label>Valor de cuota<input name="monto" type="text" inputmode="decimal" required></label>
       <label class="check-label"><input name="activo" type="checkbox" checked> Activo</label>
       <div class="dialog-actions">
         <button type="button" data-close>Cancelar</button>
@@ -638,7 +638,7 @@
       <input name="id" type="hidden">
       <input name="tipo" type="hidden">
       <label>Fecha<input name="fecha" type="date" required></label>
-      <label>Monto<input name="monto" type="number" step="0.01" min="0.01" required></label>
+      <label>Monto<input name="monto" type="text" inputmode="decimal" required></label>
       <label>Concepto<input name="concepto" list="conceptosCaja" required></label>
       <label>Medio de pago
         <select name="medio_pago">
@@ -705,6 +705,6 @@
   </dialog>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="app.js?v=20260711-manual"></script>
+  <script src="app.js?v=20260817-numeros-ar"></script>
 </body>
 </html>
