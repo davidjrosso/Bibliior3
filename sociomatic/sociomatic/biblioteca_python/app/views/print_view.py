@@ -38,6 +38,7 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
     for row in rows:
         socio = escape(f"{row['apellido']}, {row['nombre']}")
         direccion = escape(f"{row['direccion']} - {row['localidad']}")
+        barrio = escape(row["barrio"] or "")
         monto = format_money(row["monto"])
 
         def talon(tipo: str) -> str:
@@ -57,7 +58,7 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
                         <span>Socio #{format_number(row['nro_socio'])}</span>
                         <b>{socio}</b>
                         <span>{direccion}</span>
-                        <em>{mes}</em>
+                        <span>Barrio: {barrio}</span>
                     </section>
                     <section class="datos-monto">
                         <span>Monto</span>
