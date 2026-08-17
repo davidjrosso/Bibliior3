@@ -9,7 +9,7 @@ DB_PATH = DATA_DIR / "biblioteca.sqlite3"
 
 COBRADORES = {
     1: "Cobrador",
-    2: "No me acuerdo",
+    2: "Cobrador 2",
     3: "Biblioteca",
     4: "Pago adelantado",
     5: "Debe mas de cuatro cuotas",

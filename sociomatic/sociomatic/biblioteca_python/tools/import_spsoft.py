@@ -19,6 +19,13 @@ DEFAULT_SP01 = ROOT / "data" / "analisis_sp01_koha" / "sp01_parseado.csv"
 DEFAULT_KOHA = ROOT / "data" / "analisis_sp01_koha" / "koha_usuarios.csv"
 DEFAULT_MDB = ROOT / "data" / "analisis_spsoft_zip" / "fvmaecli_registro_altas_bajas.csv"
 DB_PATH = ROOT / "data" / "biblioteca.sqlite3"
+ZONA_COBRADOR = {
+    1: 1,
+    2: 2,
+    3: 3,
+    4: 4,
+    6: 5,
+}
 
 
 def now_iso() -> str:
@@ -172,6 +179,17 @@ def cliente_by_nro(rows: list[dict]) -> dict[int, dict]:
     return result
 
 
+def es_registro_especial(row: dict) -> bool:
+    nro = as_int(row.get("NCLI"))
+    razon = (row.get("RAZON") or "").upper()
+    return nro in {0, 999999} or "BIBLIOTECA POP" in razon
+
+
+def es_socio_importable(row: dict) -> bool:
+    zona = as_int(row.get("ZONA"))
+    return zona in ZONA_COBRADOR and not es_registro_especial(row)
+
+
 def build_socios(
     cliente_rows: list[dict],
     mdb_rows: list[dict],
@@ -179,13 +197,15 @@ def build_socios(
     koha_rows: list[dict],
     cuota_rows: list[dict],
 ) -> dict[int, dict]:
-    clientes = cliente_by_nro(cliente_rows)
+    clientes = {
+        nro: row
+        for nro, row in cliente_by_nro(cliente_rows).items()
+        if es_socio_importable(row)
+    }
     mdb = mdb_by_nro(mdb_rows)
     sp01 = sp01_by_nro(sp01_rows)
     koha = koha_by_nro(koha_rows)
-    cuota_refs = {as_int(row.get("NCLI")) for row in cuota_rows}
-    cuota_refs.discard(None)
-    nros = set(clientes) | set(mdb) | set(sp01) | set(koha) | cuota_refs
+    nros = set(clientes)
     timestamp = now_iso()
     socios = {}
     for nro in sorted(nros):
@@ -207,9 +227,7 @@ def build_socios(
         dni = clean_dni(row_cliente.get("CUIT") or row_sp01.get("dni_cuit_lis") or row_mdb.get("Campo8"), nro)
         actividad = (row_sp01.get("actividad_lis") or "").strip()
         estado = "jubilado" if "JUBIL" in actividad.upper() else "activo"
-        fecha_baja = norm_date(row_mdb.get("Fecha Egreso"))
-        if not fecha_baja and row_cliente.get("ESTADO") == "B":
-            fecha_baja = date.today().isoformat()
+        fecha_baja = None
         fecha_alta = norm_date(row_mdb.get("Fecha Ingreso")) or "2000-01-01"
         direccion = row_cliente.get("DIRE1") or row_sp01.get("domicilio_lis") or row_mdb.get("Campo10") or ""
         localidad = row_cliente.get("LOC") or row_sp01.get("localidad_lis") or row_mdb.get("Campo4") or "RIO TERCERO"
@@ -227,7 +245,7 @@ def build_socios(
             "fecha_nacimiento": None,
             "ocupacion": actividad.strip(),
             "estado": estado,
-            "cobrador": 1,
+            "cobrador": ZONA_COBRADOR[as_int(row_cliente.get("ZONA"))],
             "fecha_alta": fecha_alta,
             "fecha_baja": fecha_baja,
             "creado_en": timestamp,
