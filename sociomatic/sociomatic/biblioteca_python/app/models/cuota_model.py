@@ -11,7 +11,14 @@ def generar(conn, data: dict) -> dict:
     if not control["puede_generar"]:
         raise ValueError(control["motivo"])
     socios = conn.execute(
-        "SELECT * FROM socios WHERE fecha_baja IS NULL AND cobrador IN (1, 3)"
+        """
+        SELECT *
+        FROM socios
+        WHERE fecha_baja IS NULL
+          AND cobrador IN (1, 3)
+          AND fecha_alta <= ?
+        """,
+        (f"{periodo}-31",),
     ).fetchall()
     creadas = 0
     for socio in socios:
@@ -35,14 +42,8 @@ def control_generacion(conn, periodo: str) -> dict:
         raise ValueError("Periodo invalido. Use AAAA-MM.")
     periodo_anterior = add_months(periodo, -1)
     total_cuotas = conn.execute("SELECT COUNT(*) AS total FROM cuotas").fetchone()["total"]
-    cuotas_periodo = conn.execute(
-        "SELECT COUNT(*) AS total FROM cuotas WHERE periodo = ?",
-        (periodo,),
-    ).fetchone()["total"]
-    cuotas_anterior = conn.execute(
-        "SELECT COUNT(*) AS total FROM cuotas WHERE periodo = ?",
-        (periodo_anterior,),
-    ).fetchone()["total"]
+    cuotas_periodo = _contar_cuotas_objetivo(conn, periodo)
+    cuotas_anterior = _contar_cuotas_objetivo(conn, periodo_anterior)
     socios_objetivo = _contar_socios_objetivo(conn, periodo)
     socios_anterior_objetivo = _contar_socios_objetivo(conn, periodo_anterior)
     faltantes_estimadas = max(int(socios_objetivo or 0) - int(cuotas_periodo or 0), 0)
@@ -85,6 +86,24 @@ def _contar_socios_objetivo(conn, periodo: str) -> int:
               AND fecha_alta <= ?
             """,
             (f"{periodo}-31",),
+        ).fetchone()["total"]
+        or 0
+    )
+
+
+def _contar_cuotas_objetivo(conn, periodo: str) -> int:
+    return int(
+        conn.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM cuotas c
+            JOIN socios s ON s.id = c.socio_id
+            WHERE c.periodo = ?
+              AND s.fecha_baja IS NULL
+              AND s.cobrador IN (1, 3)
+              AND s.fecha_alta <= ?
+            """,
+            (periodo, f"{periodo}-31"),
         ).fetchone()["total"]
         or 0
     )
