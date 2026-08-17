@@ -126,7 +126,7 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
       width: 56mm;
       height: 56mm;
       object-fit: contain;
-      opacity: 0.09;
+      opacity: 0.18;
       transform: translate(-50%, -50%);
       z-index: 0;
       pointer-events: none;
