@@ -13,11 +13,14 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
         socio = f"{row['apellido']}, {row['nombre']}"
         base = f"""
         <div class="talon">
-            <strong>Biblioteca - Cuota {periodo}</strong>
-            <span>Socio #{row['nro_socio']} - DNI {row['dni']}</span>
-            <span>{socio}</span>
-            <span>{row['direccion']} - {row['localidad']}</span>
-            <span>Monto: {format_money(row['monto'])}</span>
+            <img class="marca-agua" src="/assets/watermark-biblioteca.png?v=20260817" alt="">
+            <div class="talon-contenido">
+                <strong>Biblioteca - Cuota {periodo}</strong>
+                <span>Socio #{row['nro_socio']} - DNI {row['dni']}</span>
+                <span>{socio}</span>
+                <span>{row['direccion']} - {row['localidad']}</span>
+                <span>Monto: {format_money(row['monto'])}</span>
+            </div>
         </div>
         """
         cards.append(f"<section class='cupon'>{base}<div class='corte'></div>{base}</section>")
@@ -42,7 +45,34 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
       grid-template-columns: 1fr 1px 1fr;
       page-break-inside: avoid;
     }}
-    .talon {{ padding: 7mm; display: flex; flex-direction: column; gap: 4mm; font-size: 12pt; }}
+    .talon {{
+      padding: 7mm;
+      position: relative;
+      overflow: hidden;
+      min-height: 62mm;
+      font-size: 12pt;
+    }}
+    .talon-contenido {{
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4mm;
+    }}
+    .marca-agua {{
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 48mm;
+      height: 48mm;
+      object-fit: contain;
+      opacity: 0.11;
+      transform: translate(-50%, -50%);
+      z-index: 0;
+      pointer-events: none;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }}
     .corte {{ border-left: 1px dashed #333; }}
     @media print {{
       .barra {{ display: none; }}
