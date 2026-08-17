@@ -1,3 +1,6 @@
+from html import escape
+
+
 def format_number(value) -> str:
     return f"{int(value):,}".replace(",", ".")
 
@@ -7,23 +10,67 @@ def format_money(value) -> str:
     return "$ " + text.replace(",", "_").replace(".", ",").replace("_", ".")
 
 
+def period_label(periodo: str) -> str:
+    meses = {
+        "01": "Enero",
+        "02": "Febrero",
+        "03": "Marzo",
+        "04": "Abril",
+        "05": "Mayo",
+        "06": "Junio",
+        "07": "Julio",
+        "08": "Agosto",
+        "09": "Septiembre",
+        "10": "Octubre",
+        "11": "Noviembre",
+        "12": "Diciembre",
+    }
+    try:
+        year, month = periodo.split("-", 1)
+        return f"{meses.get(month, month)} {year}"
+    except ValueError:
+        return periodo
+
+
 def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
     cards = []
+    mes = period_label(periodo)
     for row in rows:
-        socio = f"{row['apellido']}, {row['nombre']}"
-        base = f"""
-        <div class="talon">
+        socio = escape(f"{row['apellido']}, {row['nombre']}")
+        direccion = escape(f"{row['direccion']} - {row['localidad']}")
+        monto = format_money(row["monto"])
+
+        def talon(tipo: str) -> str:
+            return f"""
+        <div class="talon {tipo.lower()}">
             <img class="marca-agua" src="/assets/watermark-biblioteca.png?v=20260817" alt="">
             <div class="talon-contenido">
-                <strong>Biblioteca - Cuota {periodo}</strong>
-                <span>Socio #{row['nro_socio']} - DNI {row['dni']}</span>
-                <span>{socio}</span>
-                <span>{row['direccion']} - {row['localidad']}</span>
-                <span>Monto: {format_money(row['monto'])}</span>
+                <div class="tipo">{tipo}</div>
+                <header>
+                    <strong>BIBLIOTECA POPULAR J.J. DE URQUIZA</strong>
+                    <span>ALBERDI 75 - RIO TERCERO</span>
+                    <span>TE: 3571-412148</span>
+                </header>
+                <div class="datos">
+                    <section class="datos-socio">
+                        <strong>Cuota {periodo}</strong>
+                        <span>Socio #{format_number(row['nro_socio'])}</span>
+                        <b>{socio}</b>
+                        <span>{direccion}</span>
+                        <em>{mes}</em>
+                    </section>
+                    <section class="datos-monto">
+                        <span>Monto</span>
+                        <strong>{monto}</strong>
+                        <em>{mes}</em>
+                    </section>
+                </div>
+                <footer>MUCHAS GRACIAS POR MANTENER SU CUOTA AL DIA</footer>
             </div>
         </div>
         """
-        cards.append(f"<section class='cupon'>{base}<div class='corte'></div>{base}</section>")
+
+        cards.append(f"<section class='cupon'>{talon('ORIGINAL')}<div class='corte'></div>{talon('DUPLICADO')}</section>")
     total = len(cards)
     body = "\n".join(cards) or "<p>No hay cuotas para imprimir con esos criterios.</p>"
     return f"""<!doctype html>
@@ -37,36 +84,48 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
     body {{ font-family: Arial, sans-serif; margin: 0; color: #111; }}
     .barra {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }}
     button {{ padding: 8px 12px; }}
-    .hoja {{ display: grid; grid-template-columns: 1fr; gap: 6mm; }}
+    .hoja {{ display: grid; grid-template-columns: 1fr; gap: 0; }}
     .cupon {{
       border: 1px solid #111;
-      min-height: 62mm;
+      height: 68mm;
       display: grid;
       grid-template-columns: 1fr 1px 1fr;
       page-break-inside: avoid;
     }}
     .talon {{
-      padding: 7mm;
+      padding: 3.8mm 5mm;
       position: relative;
       overflow: hidden;
-      min-height: 62mm;
-      font-size: 12pt;
+      font-size: 9pt;
     }}
     .talon-contenido {{
       position: relative;
       z-index: 1;
       display: flex;
       flex-direction: column;
-      gap: 4mm;
+      min-height: 100%;
+      gap: 2.2mm;
     }}
+    .tipo {{ font-weight: 700; font-size: 9pt; letter-spacing: .3px; }}
+    header {{ text-align: center; border-bottom: 1px solid #111; padding-bottom: 2.2mm; }}
+    header strong {{ display: block; font-size: 10.8pt; margin-bottom: .6mm; }}
+    header span {{ display: block; font-size: 8.2pt; line-height: 1.15; }}
+    .datos {{ display: grid; grid-template-columns: 1fr 32mm; gap: 3mm; align-items: start; }}
+    .datos-socio, .datos-monto {{ display: flex; flex-direction: column; gap: 1.1mm; }}
+    .datos-socio strong, .datos-monto strong {{ font-size: 9.5pt; }}
+    .datos-socio b {{ font-size: 9.8pt; }}
+    .datos-monto {{ text-align: right; }}
+    .datos-monto span {{ font-size: 7.8pt; text-transform: uppercase; }}
+    em {{ font-style: normal; font-weight: 700; font-size: 8.3pt; }}
+    footer {{ margin-top: auto; border-top: 1px solid #111; padding-top: 1.6mm; text-align: center; font-weight: 700; font-size: 7.6pt; }}
     .marca-agua {{
       position: absolute;
       left: 50%;
       top: 50%;
-      width: 48mm;
-      height: 48mm;
+      width: 56mm;
+      height: 56mm;
       object-fit: contain;
-      opacity: 0.11;
+      opacity: 0.09;
       transform: translate(-50%, -50%);
       z-index: 0;
       pointer-events: none;
@@ -76,6 +135,7 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
     .corte {{ border-left: 1px dashed #333; }}
     @media print {{
       .barra {{ display: none; }}
+      body {{ margin: 0; }}
       .cupon:nth-of-type(4n) {{ page-break-after: always; }}
     }}
   </style>
