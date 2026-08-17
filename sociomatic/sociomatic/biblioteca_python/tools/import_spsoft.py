@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 DEFAULT_ZIP = Path.home() / "Downloads" / "spsoft-20260725T174059Z-1-001.zip"
+DEFAULT_SOURCE_DIR = ROOT.parents[2] / "Soft Biblio - NO TOCAR-20260817T193633Z-1-001" / "Soft Biblio - NO TOCAR"
 DEFAULT_SP01 = ROOT / "data" / "analisis_sp01_koha" / "sp01_parseado.csv"
 DEFAULT_KOHA = ROOT / "data" / "analisis_sp01_koha" / "koha_usuarios.csv"
 DEFAULT_MDB = ROOT / "data" / "analisis_spsoft_zip" / "fvmaecli_registro_altas_bajas.csv"
@@ -122,6 +123,16 @@ def read_dbf_from_zip(zip_path: Path, member: str) -> list[dict]:
             return list(DbfTable(fh.read()).rows())
 
 
+def read_dbf(path: Path) -> list[dict]:
+    return list(DbfTable(path.read_bytes()).rows())
+
+
+def load_dbf(args, name: str) -> list[dict]:
+    if args.source_dir:
+        return read_dbf(args.source_dir / name)
+    return read_dbf_from_zip(args.zip, f"spsoft/Fvta/{name}")
+
+
 def koha_by_nro(rows: list[dict]) -> dict[int, dict]:
     result = {}
     for row in rows:
@@ -152,33 +163,57 @@ def mdb_by_nro(rows: list[dict]) -> dict[int, dict]:
     return result
 
 
-def build_socios(mdb_rows: list[dict], sp01_rows: list[dict], koha_rows: list[dict], cuota_rows: list[dict]) -> dict[int, dict]:
+def cliente_by_nro(rows: list[dict]) -> dict[int, dict]:
+    result = {}
+    for row in rows:
+        nro = as_int(row.get("NCLI"))
+        if nro is not None:
+            result[nro] = row
+    return result
+
+
+def build_socios(
+    cliente_rows: list[dict],
+    mdb_rows: list[dict],
+    sp01_rows: list[dict],
+    koha_rows: list[dict],
+    cuota_rows: list[dict],
+) -> dict[int, dict]:
+    clientes = cliente_by_nro(cliente_rows)
     mdb = mdb_by_nro(mdb_rows)
     sp01 = sp01_by_nro(sp01_rows)
     koha = koha_by_nro(koha_rows)
     cuota_refs = {as_int(row.get("NCLI")) for row in cuota_rows}
     cuota_refs.discard(None)
-    nros = set(mdb) | set(sp01) | set(koha) | cuota_refs
+    nros = set(clientes) | set(mdb) | set(sp01) | set(koha) | cuota_refs
     timestamp = now_iso()
     socios = {}
     for nro in sorted(nros):
+        row_cliente = clientes.get(nro, {})
         row_mdb = mdb.get(nro, {})
         row_sp01 = sp01.get(nro, {})
         row_koha = koha.get(nro, {})
         koha_name = row_koha.get("nombre_koha", "")
-        if "," in koha_name:
+        if row_cliente.get("RAZON"):
+            apellido, nombre = split_name(row_cliente.get("RAZON", ""))
+        elif row_sp01.get("nombre_lis"):
+            apellido, nombre = split_name(row_sp01.get("nombre_lis", ""))
+        elif row_mdb.get("Apellido y Nombre"):
+            apellido, nombre = split_name(row_mdb.get("Apellido y Nombre", ""))
+        elif "," in koha_name:
             apellido, nombre = [part.strip().upper() for part in koha_name.split(",", 1)]
         else:
-            full_name = row_sp01.get("nombre_lis") or row_mdb.get("Apellido y Nombre") or koha_name
-            apellido, nombre = split_name(full_name)
-        dni = clean_dni(row_sp01.get("dni_cuit_lis") or row_mdb.get("Campo8"), nro)
+            apellido, nombre = split_name(koha_name)
+        dni = clean_dni(row_cliente.get("CUIT") or row_sp01.get("dni_cuit_lis") or row_mdb.get("Campo8"), nro)
         actividad = (row_sp01.get("actividad_lis") or "").strip()
         estado = "jubilado" if "JUBIL" in actividad.upper() else "activo"
         fecha_baja = norm_date(row_mdb.get("Fecha Egreso"))
+        if not fecha_baja and row_cliente.get("ESTADO") == "B":
+            fecha_baja = date.today().isoformat()
         fecha_alta = norm_date(row_mdb.get("Fecha Ingreso")) or "2000-01-01"
-        direccion = row_sp01.get("domicilio_lis") or row_mdb.get("Campo10") or ""
-        localidad = row_sp01.get("localidad_lis") or row_mdb.get("Campo4") or "RIO TERCERO"
-        telefono = row_sp01.get("telefono1_lis") or row_mdb.get("Campo7") or ""
+        direccion = row_cliente.get("DIRE1") or row_sp01.get("domicilio_lis") or row_mdb.get("Campo10") or ""
+        localidad = row_cliente.get("LOC") or row_sp01.get("localidad_lis") or row_mdb.get("Campo4") or "RIO TERCERO"
+        telefono = row_cliente.get("TELEF2") or row_cliente.get("TE") or row_sp01.get("telefono1_lis") or row_mdb.get("Campo7") or ""
         socios[nro] = {
             "nro_socio": nro,
             "dni": dni,
@@ -248,9 +283,10 @@ def import_data(args) -> dict:
     sp01_rows = read_csv(args.sp01_csv)
     koha_rows = read_csv(args.koha_csv)
     mdb_rows = read_csv(args.mdb_csv)
-    cuota_rows = read_dbf_from_zip(args.zip, "spsoft/Fvta/FVCUOTA.DBF")
-    caja_rows = read_dbf_from_zip(args.zip, "spsoft/Fvta/FVCAJA.DBF")
-    socios = build_socios(mdb_rows, sp01_rows, koha_rows, cuota_rows)
+    cliente_rows = load_dbf(args, "FVMAECLI.DBF")
+    cuota_rows = load_dbf(args, "FVCUOTA.DBF")
+    caja_rows = load_dbf(args, "FVCAJA.DBF")
+    socios = build_socios(cliente_rows, mdb_rows, sp01_rows, koha_rows, cuota_rows)
     cuotas = grouped_cuotas(cuota_rows)
     timestamp = now_iso()
     stats = Counter()
@@ -341,13 +377,14 @@ def import_data(args) -> dict:
         stats["caja_dias"] = len(dias)
         conn.execute(
             "INSERT INTO auditoria (accion, detalle, creado_en) VALUES ('importacion_spsoft', ?, ?)",
-            (f"Importacion inicial desde {args.zip.name}", timestamp),
+            (f"Importacion inicial desde {(args.source_dir or args.zip).name}", timestamp),
         )
     return {"backup": str(backup) if backup else "", **stats}
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Importa datos historicos de SPSoft a Biblioteca.")
+    parser.add_argument("--source-dir", type=Path, default=DEFAULT_SOURCE_DIR if DEFAULT_SOURCE_DIR.exists() else None)
     parser.add_argument("--zip", type=Path, default=DEFAULT_ZIP)
     parser.add_argument("--sp01-csv", type=Path, default=DEFAULT_SP01)
     parser.add_argument("--koha-csv", type=Path, default=DEFAULT_KOHA)
