@@ -16,16 +16,29 @@ def create(handler, conn, _query):
 
 
 def generate(handler, conn, _query):
-    result = cuota_service.generar(conn, read_json(handler))
+    data = read_json(handler)
+    if data.get("forzar"):
+        periodo = data.get("periodo", "")
+        security_model.require_admin(handler, conn, "cuota.generar_forzado", f"Periodo {periodo}")
+    result = cuota_service.generar(conn, data)
     json_response(
         handler,
-        {"exito": True, "periodo": result["periodo"], "cuotas_creadas": result["cuotas_creadas"]},
+        {
+            "exito": True,
+            "periodo": result["periodo"],
+            "cuotas_creadas": result["cuotas_creadas"],
+            "forzada": result["forzada"],
+        },
     )
 
 
 def generate_control(handler, conn, query):
     periodo = (query.get("periodo", [""])[0] or "").strip()
     json_response(handler, {"exito": True, "control": cuota_service.control_generacion(conn, periodo)})
+
+
+def generation_missing(handler, conn, query):
+    json_response(handler, {"exito": True, **cuota_service.listar_faltantes_generacion(conn, query)})
 
 
 def advance_payment(handler, conn, _query):

@@ -13,6 +13,10 @@ def control_generacion(conn, periodo: str) -> dict:
     return cuota_model.control_generacion(conn, periodo)
 
 
+def listar_faltantes_generacion(conn, query: dict) -> dict:
+    return cuota_model.listar_faltantes_generacion(conn, query)
+
+
 def pago_adelantado(conn, data: dict) -> dict:
     return cuota_model.pago_adelantado(conn, data)
 

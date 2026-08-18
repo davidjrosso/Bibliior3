@@ -219,6 +219,37 @@
             <button>Generar cuotas</button>
           </form>
         </div>
+        <div class="section-head missing-head">
+          <div>
+            <h3>Cuotas sin generar hacia atras</h3>
+            <p>Control de socios alcanzados que no tienen cuota creada en periodos anteriores.</p>
+          </div>
+          <div class="row-actions">
+            <button type="button" id="btnActualizarFaltantes" class="secondary">Listar faltantes</button>
+          </div>
+        </div>
+        <form id="formFaltantesCuotas" class="filters cuotas-filters">
+          <label>Desde<input name="desde" type="month"></label>
+          <label>Hasta<input name="hasta" type="month"></label>
+          <label>Mostrar<input name="limite" type="number" min="1" max="5000" value="500"></label>
+        </form>
+        <div id="faltantesResumen" class="generation-control">
+          Use el listado para revisar meses anteriores incompletos.
+        </div>
+        <div class="table-wrap cuotas-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Periodo</th>
+                <th>Nro.</th>
+                <th>Socio</th>
+                <th>Cobrador</th>
+                <th>Contacto</th>
+              </tr>
+            </thead>
+            <tbody id="faltantesCuotasBody"></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="module-view" data-cuotas-panel="impresion" hidden>

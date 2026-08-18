@@ -1,6 +1,14 @@
 const state = {
   socios: [],
   cuotas: [],
+  faltantesCuotas: {
+    desde: '',
+    hasta: '',
+    total: 0,
+    mostrados: 0,
+    resumen: [],
+    faltantes: []
+  },
   morosos: [],
   selectedId: null,
   socioCrudId: null,
@@ -39,6 +47,12 @@ function periodoSiguiente() {
 function periodoActual() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function sumarMesesPeriodo(periodo, meses) {
+  const [year, month] = periodo.split('-').map(Number);
+  const date = new Date(year, month - 1 + meses, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function fechaActual() {
@@ -528,9 +542,9 @@ async function cargarControlGeneracion() {
 function renderControlGeneracion(control) {
   const box = $('#generarControl');
   if (!box || !control) return;
-  box.className = `generation-control ${control.puede_generar ? 'ok' : 'blocked'}`;
+  const estado = control.puede_generar ? 'ok' : (control.forzable ? 'warning' : 'blocked');
   box.innerHTML = `
-    <strong>${control.puede_generar ? 'Listo para generar' : 'No se puede generar'}</strong>
+    <strong>${control.puede_generar ? 'Listo para generar' : (control.forzable ? 'Advertencia: se puede forzar' : 'No se puede generar')}</strong>
     <span>Periodo: ${control.periodo}</span>
     <span>Periodo anterior requerido: ${control.periodo_anterior} (${number(control.cuotas_anterior)} de ${number(control.socios_anterior_objetivo)} esperadas)</span>
     <span>Socios alcanzados: ${number(control.socios_objetivo)}</span>
@@ -538,6 +552,66 @@ function renderControlGeneracion(control) {
     <span>Cuotas estimadas a crear: ${number(control.faltantes_estimadas)}</span>
     ${control.motivo ? `<small>${control.motivo}</small>` : ''}
   `;
+  box.className = `generation-control ${estado}`;
+  prepararFiltroFaltantes(control);
+}
+
+function prepararFiltroFaltantes(control) {
+  const form = $('#formFaltantesCuotas');
+  if (!form || !control) return;
+  if (!form.hasta.value) form.hasta.value = control.periodo_anterior || sumarMesesPeriodo(control.periodo, -1);
+  if (!form.desde.value) form.desde.value = `${form.hasta.value.slice(0, 4)}-01`;
+}
+
+async function cargarFaltantesCuotas() {
+  const form = $('#formFaltantesCuotas');
+  if (!form) return;
+  if (!form.hasta.value) {
+    const control = await cargarControlGeneracion();
+    if (control) prepararFiltroFaltantes(control);
+  }
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(formData(form))) {
+    if (value) params.set(key, value);
+  }
+  const data = await api(`/api/cuotas/generar/faltantes?${params.toString()}`);
+  state.faltantesCuotas = data;
+  renderFaltantesCuotas();
+}
+
+function renderFaltantesCuotas() {
+  const box = $('#faltantesResumen');
+  const body = $('#faltantesCuotasBody');
+  const data = state.faltantesCuotas;
+  if (!box || !body || !data) return;
+  const resumen = (data.resumen || []).slice(0, 8)
+    .map(item => `<span>${item.periodo}: ${number(item.faltantes)} faltante(s)</span>`)
+    .join('');
+  box.className = `generation-control ${data.total ? 'warning' : 'ok'}`;
+  box.innerHTML = `
+    <strong>${data.total ? 'Hay cuotas sin generar' : 'No hay faltantes en el rango'}</strong>
+    <span>Rango: ${data.desde || '-'} a ${data.hasta || '-'}</span>
+    <span>Total faltantes: ${number(data.total || 0)} | Mostrados: ${number(data.mostrados || 0)}</span>
+    ${resumen || '<span>Sin periodos incompletos para mostrar.</span>'}
+    ${(data.total || 0) > (data.mostrados || 0) ? '<small>El listado esta limitado. Ajuste el rango o aumente el limite para ver mas.</small>' : ''}
+  `;
+  body.innerHTML = '';
+  const rows = data.faltantes || [];
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="5">No hay cuotas faltantes para el rango seleccionado.</td></tr>';
+    return;
+  }
+  for (const item of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${item.periodo}</td>
+      <td>${item.nro_socio}</td>
+      <td>${item.apellido}, ${item.nombre}<br><small>DNI ${item.dni || '-'}</small></td>
+      <td>${item.cobrador} - ${cobradorTexto(item.cobrador)}</td>
+      <td>${item.telefono || '-'}</td>
+    `;
+    body.appendChild(tr);
+  }
 }
 
 async function cargarMorosos() {
@@ -1268,6 +1342,8 @@ async function init() {
   $('#formGenerar').periodo.value = periodo;
   $('#formImprimir').periodo.value = periodo;
   $('#formImprimir').cobrador.value = state.config.impresion_cobrador_default || '1';
+  $('#formFaltantesCuotas').hasta.value = sumarMesesPeriodo(periodo, -1);
+  $('#formFaltantesCuotas').desde.value = `${$('#formFaltantesCuotas').hasta.value.slice(0, 4)}-01`;
   if ($('#formCuota')) $('#formCuota').periodo.value = periodo;
   $('#formFiltroCuotas').periodo.value = periodo;
   $('#formCajaDia').fecha.value = fechaActual();
@@ -1341,7 +1417,18 @@ async function init() {
   $('#btnActualizarMorosos').addEventListener('click', cargarMorosos);
   $('#btnImprimirMorosos').addEventListener('click', () => window.open('/imprimir-morosos', '_blank'));
   $('#formCajaDia').fecha.addEventListener('change', cargarCaja);
-  $('#formGenerar').periodo.addEventListener('change', cargarControlGeneracion);
+  $('#formGenerar').periodo.addEventListener('change', async () => {
+    const control = await cargarControlGeneracion();
+    if (control) {
+      $('#formFaltantesCuotas').hasta.value = control.periodo_anterior;
+      $('#formFaltantesCuotas').desde.value = `${control.periodo_anterior.slice(0, 4)}-01`;
+    }
+  });
+  $('#btnActualizarFaltantes').addEventListener('click', () => cargarFaltantesCuotas().catch(error => toast(error.message)));
+  $('#formFaltantesCuotas').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await cargarFaltantesCuotas();
+  });
   $('#formCajaListado').addEventListener('submit', async (event) => {
     event.preventDefault();
     await cargarCajaListado();
@@ -1444,22 +1531,31 @@ async function init() {
     event.preventDefault();
     const data = formData(event.currentTarget);
     const control = await cargarControlGeneracion();
-    if (!control || !control.puede_generar) {
+    if (!control) {
+      throw new Error('Revise el periodo antes de generar cuotas.');
+    }
+    if (!control.puede_generar && !control.forzable) {
       throw new Error((control && control.motivo) || 'Revise el periodo antes de generar cuotas.');
     }
+    data.forzar = !control.puede_generar && control.forzable;
     const mensaje =
-      `Va a generar cuotas para ${control.periodo}.\n\n` +
+      `${data.forzar ? 'Va a FORZAR la generacion' : 'Va a generar cuotas'} para ${control.periodo}.\n\n` +
       `Periodo anterior requerido: ${control.periodo_anterior} (${number(control.cuotas_anterior)} de ${number(control.socios_anterior_objetivo)} esperadas)\n` +
       `Socios alcanzados: ${number(control.socios_objetivo)}\n` +
       `Cuotas ya existentes en el periodo: ${number(control.cuotas_periodo)}\n` +
       `Cuotas estimadas a crear: ${number(control.faltantes_estimadas)}\n\n` +
+      `${data.forzar ? 'Hay meses anteriores incompletos. Esta accion pedira clave de administrador.\n\n' : ''}` +
       'Confirma la generacion?';
     if (!confirm(mensaje)) return;
-    const result = await api('/api/cuotas/generar', { method: 'POST', body: JSON.stringify(data) });
+    const request = { method: 'POST', body: JSON.stringify(data) };
+    const result = data.forzar
+      ? await apiAdmin('/api/cuotas/generar', request, `Autorizar generacion forzada de ${control.periodo}.`)
+      : await api('/api/cuotas/generar', request);
     $('#formFiltroCuotas').periodo.value = result.periodo;
     await refrescarTodo();
     await cargarControlGeneracion();
-    toast(`Generadas ${number(result.cuotas_creadas)} cuota(s) para ${result.periodo}`);
+    await cargarFaltantesCuotas();
+    toast(`${result.forzada ? 'Generacion forzada' : 'Generacion'}: ${number(result.cuotas_creadas)} cuota(s) para ${result.periodo}`);
   });
 
   $('#formImprimir').addEventListener('submit', (event) => {

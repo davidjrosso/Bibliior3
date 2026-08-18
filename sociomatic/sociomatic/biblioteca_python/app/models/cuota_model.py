@@ -1,5 +1,5 @@
 from app.models import caja_model, config_model, socio_model
-from app.models.helpers import add_months, next_period, now_iso, parse_decimal, today_iso, valid_date, valid_period
+from app.models.helpers import add_months, current_period, next_period, now_iso, parse_decimal, today_iso, valid_date, valid_period
 from app.settings import COBRADORES
 
 
@@ -7,8 +7,9 @@ def generar(conn, data: dict) -> dict:
     periodo = data.get("periodo") or next_period()
     if not valid_period(periodo):
         raise ValueError("Periodo invalido. Use AAAA-MM.")
+    forzar = bool(data.get("forzar"))
     control = control_generacion(conn, periodo)
-    if not control["puede_generar"]:
+    if not control["puede_generar"] and not (forzar and control["forzable"]):
         raise ValueError(control["motivo"])
     socios = conn.execute(
         """
@@ -34,7 +35,7 @@ def generar(conn, data: dict) -> dict:
             creadas += 1
         except Exception:
             continue
-    return {"periodo": periodo, "cuotas_creadas": creadas, "control": control}
+    return {"periodo": periodo, "cuotas_creadas": creadas, "control": control, "forzada": forzar}
 
 
 def control_generacion(conn, periodo: str) -> dict:
@@ -48,11 +49,13 @@ def control_generacion(conn, periodo: str) -> dict:
     socios_anterior_objetivo = _contar_socios_objetivo(conn, periodo_anterior)
     faltantes_estimadas = max(int(socios_objetivo or 0) - int(cuotas_periodo or 0), 0)
     puede_generar = True
+    forzable = False
     motivo = ""
     if total_cuotas and cuotas_anterior < socios_anterior_objetivo:
         puede_generar = False
+        forzable = True
         motivo = (
-            f"No se puede generar {periodo}. El periodo anterior ({periodo_anterior}) no esta completo: "
+            f"Advertencia para generar {periodo}. El periodo anterior ({periodo_anterior}) no esta completo: "
             f"tiene {cuotas_anterior} de {socios_anterior_objetivo} cuota(s) esperada(s)."
         )
     elif socios_objetivo == 0:
@@ -65,6 +68,7 @@ def control_generacion(conn, periodo: str) -> dict:
         "periodo": periodo,
         "periodo_anterior": periodo_anterior,
         "puede_generar": puede_generar,
+        "forzable": forzable,
         "motivo": motivo,
         "socios_objetivo": int(socios_objetivo or 0),
         "socios_anterior_objetivo": int(socios_anterior_objetivo or 0),
@@ -107,6 +111,93 @@ def _contar_cuotas_objetivo(conn, periodo: str) -> int:
         ).fetchone()["total"]
         or 0
     )
+
+
+def periodos_entre(desde: str, hasta: str) -> list[str]:
+    periodos = []
+    periodo = desde
+    while periodo <= hasta:
+        periodos.append(periodo)
+        periodo = add_months(periodo, 1)
+    return periodos
+
+
+def listar_faltantes_generacion(conn, query: dict) -> dict:
+    hasta = (query.get("hasta", [""])[0] or "").strip() or add_months(current_period(), -1)
+    desde = (query.get("desde", [""])[0] or "").strip() or f"{hasta[:4]}-01"
+    try:
+        limite = int((query.get("limite", ["500"])[0] or "500").strip())
+    except ValueError:
+        limite = 500
+    limite = max(1, min(limite, 5000))
+    if not valid_period(desde) or not valid_period(hasta):
+        raise ValueError("Periodos invalidos. Use AAAA-MM.")
+    if desde > hasta:
+        raise ValueError("El periodo desde no puede ser mayor al periodo hasta.")
+
+    socios = conn.execute(
+        """
+        SELECT s.id, s.nro_socio, s.apellido, s.nombre, s.dni, s.telefono, s.cobrador, s.fecha_alta
+        FROM socios s
+        WHERE s.fecha_baja IS NULL
+          AND s.cobrador IN (1, 3)
+          AND s.fecha_alta <= ?
+        ORDER BY s.apellido COLLATE NOCASE, s.nombre COLLATE NOCASE, s.nro_socio
+        """,
+        (f"{hasta}-31",),
+    ).fetchall()
+    existentes = {
+        (row["socio_id"], row["periodo"])
+        for row in conn.execute(
+            """
+            SELECT c.socio_id, c.periodo
+            FROM cuotas c
+            JOIN socios s ON s.id = c.socio_id
+            WHERE c.periodo BETWEEN ? AND ?
+              AND s.fecha_baja IS NULL
+              AND s.cobrador IN (1, 3)
+            """,
+            (desde, hasta),
+        ).fetchall()
+    }
+    resumen = {periodo: 0 for periodo in periodos_entre(desde, hasta)}
+    detalle = []
+    total = 0
+    for periodo in sorted(resumen, reverse=True):
+        fecha_corte = f"{periodo}-31"
+        for socio in socios:
+            if socio["fecha_alta"] > fecha_corte:
+                continue
+            if (socio["id"], periodo) in existentes:
+                continue
+            total += 1
+            resumen[periodo] += 1
+            if len(detalle) < limite:
+                detalle.append(
+                    {
+                        "periodo": periodo,
+                        "socio_id": socio["id"],
+                        "nro_socio": socio["nro_socio"],
+                        "apellido": socio["apellido"],
+                        "nombre": socio["nombre"],
+                        "dni": socio["dni"],
+                        "telefono": socio["telefono"],
+                        "cobrador": socio["cobrador"],
+                    }
+                )
+    return {
+        "desde": desde,
+        "hasta": hasta,
+        "limite": limite,
+        "total": total,
+        "mostrados": len(detalle),
+        "resumen": [
+            {"periodo": periodo, "faltantes": cantidad}
+            for periodo, cantidad in sorted(resumen.items(), reverse=True)
+            if cantidad
+        ],
+        "faltantes": detalle,
+    }
 
 
 def crear(conn, data: dict) -> int:

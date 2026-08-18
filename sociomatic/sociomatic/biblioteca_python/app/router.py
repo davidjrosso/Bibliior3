@@ -115,6 +115,9 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
             if path == "/api/cuotas/generar/control" and method == "GET":
                 cuota_controller.generate_control(handler, conn, query)
                 return
+            if path == "/api/cuotas/generar/faltantes" and method == "GET":
+                cuota_controller.generation_missing(handler, conn, query)
+                return
             if path == "/api/cuotas/generar" and method == "POST":
                 cuota_controller.generate(handler, conn, query)
                 return

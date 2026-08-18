@@ -549,6 +549,16 @@ tbody tr:hover, tbody tr.selected { background: #edf7f5; }
   background: #f2fbf8;
 }
 
+.generation-control.warning {
+  border-color: #e8d59d;
+  background: #fff9e8;
+}
+
+.generation-control.warning strong,
+.generation-control.warning small {
+  color: #8a5a00;
+}
+
 .generation-control.blocked {
   border-color: #efc6bd;
   background: #fff6f3;
@@ -628,6 +638,10 @@ tbody tr:hover, tbody tr.selected { background: #edf7f5; }
 
 .cuotas-table {
   max-height: 46vh;
+}
+
+.missing-head {
+  margin-top: 18px;
 }
 
 .row-actions {
