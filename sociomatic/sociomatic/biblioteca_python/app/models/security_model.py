@@ -5,6 +5,7 @@ import time
 from http import cookies
 
 from app.models.helpers import now_iso
+from app.repositories import security_repository
 
 
 DEFAULT_ADMIN_KEY = "1234"
@@ -21,39 +22,33 @@ def _hash_key(key: str, salt: str) -> str:
 
 
 def ensure_default_admin_key(conn) -> None:
-    exists = conn.execute("SELECT valor FROM configuracion WHERE clave = 'admin_key_hash'").fetchone()
+    exists = security_repository.get_config_value(conn, "admin_key_hash")
     if exists:
         return
     salt = secrets.token_hex(16)
-    conn.execute("INSERT INTO configuracion (clave, valor) VALUES ('admin_key_salt', ?)", (salt,))
-    conn.execute(
-        "INSERT INTO configuracion (clave, valor) VALUES ('admin_key_hash', ?)",
-        (_hash_key(DEFAULT_ADMIN_KEY, salt),),
-    )
+    security_repository.insert_config_value(conn, "admin_key_salt", salt)
+    security_repository.insert_config_value(conn, "admin_key_hash", _hash_key(DEFAULT_ADMIN_KEY, salt))
 
 
 def ensure_default_login(conn) -> None:
-    user = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_user'").fetchone()
-    password_hash = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_password_hash'").fetchone()
-    secret = conn.execute("SELECT valor FROM configuracion WHERE clave = 'session_secret'").fetchone()
+    user = security_repository.get_config_value(conn, "login_user")
+    password_hash = security_repository.get_config_value(conn, "login_password_hash")
+    secret = security_repository.get_config_value(conn, "session_secret")
     if not user:
-        conn.execute("INSERT INTO configuracion (clave, valor) VALUES ('login_user', ?)", (DEFAULT_LOGIN_USER,))
+        security_repository.insert_config_value(conn, "login_user", DEFAULT_LOGIN_USER)
     if not password_hash:
         salt = secrets.token_hex(16)
-        conn.execute("INSERT OR REPLACE INTO configuracion (clave, valor) VALUES ('login_password_salt', ?)", (salt,))
-        conn.execute(
-            "INSERT INTO configuracion (clave, valor) VALUES ('login_password_hash', ?)",
-            (_hash_key(DEFAULT_LOGIN_PASSWORD, salt),),
-        )
+        security_repository.insert_or_replace_config_value(conn, "login_password_salt", salt)
+        security_repository.insert_config_value(conn, "login_password_hash", _hash_key(DEFAULT_LOGIN_PASSWORD, salt))
     if not secret:
-        conn.execute("INSERT INTO configuracion (clave, valor) VALUES ('session_secret', ?)", (secrets.token_hex(32),))
+        security_repository.insert_config_value(conn, "session_secret", secrets.token_hex(32))
 
 
 def verify_login(conn, usuario: str, clave: str) -> bool:
     ensure_default_login(conn)
-    user_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_user'").fetchone()
-    salt_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_password_salt'").fetchone()
-    hash_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_password_hash'").fetchone()
+    user_row = security_repository.get_config_value(conn, "login_user")
+    salt_row = security_repository.get_config_value(conn, "login_password_salt")
+    hash_row = security_repository.get_config_value(conn, "login_password_hash")
     if not user_row or not salt_row or not hash_row:
         return False
     if not hmac.compare_digest(str(usuario or ""), user_row["valor"]):
@@ -79,11 +74,7 @@ def set_login_credentials(conn, usuario: str, clave_nueva: str) -> None:
         "session_secret": secrets.token_hex(32),
     }
     for key, value in values.items():
-        conn.execute(
-            "INSERT INTO configuracion (clave, valor) VALUES (?, ?) "
-            "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
-            (key, value),
-        )
+        security_repository.upsert_config_value(conn, key, value)
 
 
 def build_session_cookie(conn, usuario: str) -> str:
@@ -120,7 +111,7 @@ def session_user(handler, conn) -> str | None:
     payload = f"{usuario}|{expires}|{nonce}"
     if not hmac.compare_digest(signature, _sign_session(conn, payload)):
         return None
-    user_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'login_user'").fetchone()
+    user_row = security_repository.get_config_value(conn, "login_user")
     if not user_row or not hmac.compare_digest(usuario, user_row["valor"]):
         return None
     return usuario
@@ -128,7 +119,7 @@ def session_user(handler, conn) -> str | None:
 
 def _sign_session(conn, payload: str) -> str:
     ensure_default_login(conn)
-    secret = conn.execute("SELECT valor FROM configuracion WHERE clave = 'session_secret'").fetchone()["valor"]
+    secret = security_repository.get_config_value(conn, "session_secret")["valor"]
     return hmac.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
@@ -143,12 +134,12 @@ def _cookie_value(handler, name: str) -> str:
 
 
 def verify_admin_key(conn, key: str) -> bool:
-    salt_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'admin_key_salt'").fetchone()
-    hash_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'admin_key_hash'").fetchone()
+    salt_row = security_repository.get_config_value(conn, "admin_key_salt")
+    hash_row = security_repository.get_config_value(conn, "admin_key_hash")
     if not salt_row or not hash_row:
         ensure_default_admin_key(conn)
-        salt_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'admin_key_salt'").fetchone()
-        hash_row = conn.execute("SELECT valor FROM configuracion WHERE clave = 'admin_key_hash'").fetchone()
+        salt_row = security_repository.get_config_value(conn, "admin_key_salt")
+        hash_row = security_repository.get_config_value(conn, "admin_key_hash")
     given = _hash_key(str(key or ""), salt_row["valor"])
     return hmac.compare_digest(given, hash_row["valor"])
 
@@ -161,11 +152,7 @@ def set_admin_key(conn, current_key: str, new_key: str) -> None:
         raise ValueError("La nueva clave debe tener al menos 4 caracteres.")
     salt = secrets.token_hex(16)
     for key, value in {"admin_key_salt": salt, "admin_key_hash": _hash_key(new_key, salt)}.items():
-        conn.execute(
-            "INSERT INTO configuracion (clave, valor) VALUES (?, ?) "
-            "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
-            (key, value),
-        )
+        security_repository.upsert_config_value(conn, key, value)
     audit(conn, "seguridad.clave", "Cambio de clave de administrador")
 
 
@@ -180,20 +167,8 @@ def require_admin(handler, conn, action: str, detail: str = "") -> None:
 
 
 def audit(conn, action: str, detail: str = "") -> None:
-    conn.execute(
-        """
-        INSERT INTO auditoria (accion, detalle, creado_en)
-        VALUES (?, ?, ?)
-        """,
-        (action, detail, now_iso()),
-    )
+    security_repository.insert_audit(conn, action, detail, now_iso())
 
 
 def listar_auditoria(conn, limit: int = 20) -> list[dict]:
-    return [
-        dict(row)
-        for row in conn.execute(
-            "SELECT * FROM auditoria ORDER BY id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-    ]
+    return [dict(row) for row in security_repository.list_audit(conn, limit)]

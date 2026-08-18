@@ -1,8 +1,7 @@
 from http import HTTPStatus
 
 from app.controllers.base_controller import json_response, read_json
-from app.models import config_model, security_model, socio_model
-from app.services import socio_service
+from app.services import security_service, socio_service
 
 
 def index(handler, conn, query):
@@ -10,13 +9,7 @@ def index(handler, conn, query):
     incluir_bajas = query.get("incluir_bajas", ["0"])[0] == "1"
     json_response(
         handler,
-        {
-            "exito": True,
-            "socios": socio_model.listar(conn, busqueda, incluir_bajas),
-            "proximo_nro_socio": socio_model.proximo_nro_socio(conn),
-            "cobradores": config_model.listar_cobradores(conn),
-            "tipos_socio": config_model.listar_tipos_socio(conn),
-        },
+        {"exito": True, **socio_service.index_data(conn, busqueda, incluir_bajas)},
     )
 
 
@@ -34,14 +27,11 @@ def create(handler, conn, _query):
 
 
 def show(handler, conn, _query, socio_id: int):
-    socio = socio_model.obtener(conn, socio_id)
-    if not socio:
+    detalle = socio_service.detalle(conn, socio_id)
+    if not detalle:
         json_response(handler, {"error": "Socio no encontrado"}, HTTPStatus.NOT_FOUND)
         return
-    json_response(
-        handler,
-        {"exito": True, "socio": socio, "cuotas": socio_model.obtener_cuotas(conn, socio_id)},
-    )
+    json_response(handler, {"exito": True, **detalle})
 
 
 def update(handler, conn, _query, socio_id: int):
@@ -50,6 +40,5 @@ def update(handler, conn, _query, socio_id: int):
 
 
 def delete(handler, conn, _query, socio_id: int):
-    security_model.require_admin(handler, conn, "socio.baja", f"Socio {socio_id}")
-    nro_liberado = socio_service.baja(conn, socio_id)
+    nro_liberado = socio_service.baja(conn, socio_id, security_service.admin_key_from_request(handler))
     json_response(handler, {"exito": True, "nro_liberado": nro_liberado})

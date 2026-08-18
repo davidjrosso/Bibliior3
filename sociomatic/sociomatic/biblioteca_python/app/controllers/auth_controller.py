@@ -1,48 +1,34 @@
 from http import HTTPStatus
 
 from app.controllers.base_controller import json_response, read_json
-from app.models import security_model
+from app.services import security_service
 
 
 def session(handler, conn, _query):
-    json_response(
-        handler,
-        {
-            "exito": True,
-            "autenticado": security_model.is_authenticated(handler, conn),
-            "usuario": security_model.session_user(handler, conn),
-        },
-    )
+    json_response(handler, {"exito": True, **security_service.session_info(handler, conn)})
 
 
 def login(handler, conn, _query):
     data = read_json(handler)
     usuario = str(data.get("usuario", "")).strip()
     clave = str(data.get("clave", ""))
-    if not security_model.verify_login(conn, usuario, clave):
+    try:
+        result = security_service.login(conn, usuario, clave)
+    except PermissionError:
         json_response(handler, {"exito": False, "error": "Usuario o contrasena incorrectos."}, HTTPStatus.UNAUTHORIZED)
         return
-    security_model.audit(conn, "auth.login", f"Ingreso de {usuario}")
     json_response(
         handler,
-        {"exito": True, "usuario": usuario},
-        headers={"Set-Cookie": security_model.build_session_cookie(conn, usuario)},
+        {"exito": True, "usuario": result["usuario"]},
+        headers={"Set-Cookie": result["cookie"]},
     )
 
 
 def logout(handler, conn, _query):
-    usuario = security_model.session_user(handler, conn) or ""
-    if usuario:
-        security_model.audit(conn, "auth.logout", f"Salida de {usuario}")
-    json_response(handler, {"exito": True}, headers={"Set-Cookie": security_model.clear_session_cookie()})
+    cookie = security_service.logout(conn, security_service.session_user(handler, conn))
+    json_response(handler, {"exito": True}, headers={"Set-Cookie": cookie})
 
 
 def update_login(handler, conn, _query):
-    security_model.require_admin(handler, conn, "seguridad.acceso", "Cambio de usuario o contrasena de ingreso")
-    data = read_json(handler)
-    security_model.set_login_credentials(
-        conn,
-        data.get("usuario", ""),
-        data.get("clave_nueva", ""),
-    )
+    security_service.set_login_credentials(conn, security_service.admin_key_from_request(handler), read_json(handler))
     json_response(handler, {"exito": True})

@@ -1,70 +1,15 @@
 from app.models.helpers import current_period
 from app.models import config_model
-from app.settings import COBRADORES
+from app.repositories import dashboard_repository
 
 
 def obtener(conn, periodo: str | None = None) -> dict:
     periodo = periodo or current_period()
 
-    socios = conn.execute(
-        """
-        SELECT
-            COUNT(*) AS total,
-            SUM(CASE WHEN estado = 'activo' THEN 1 ELSE 0 END) AS activos,
-            SUM(CASE WHEN estado = 'jubilado' THEN 1 ELSE 0 END) AS jubilados,
-            SUM(CASE WHEN cobrador = 1 THEN 1 ELSE 0 END) AS cobrador_1,
-            SUM(CASE WHEN cobrador = 3 THEN 1 ELSE 0 END) AS cobrador_3
-        FROM socios
-        WHERE fecha_baja IS NULL
-        """
-    ).fetchone()
-
-    cuotas_periodo = conn.execute(
-        """
-        SELECT
-            COUNT(*) AS total,
-            SUM(CASE WHEN c.estado = 'pagada' THEN 1 ELSE 0 END) AS pagadas,
-            SUM(CASE WHEN c.estado = 'pendiente' THEN 1 ELSE 0 END) AS pendientes,
-            SUM(CASE WHEN c.estado = 'pagada' THEN c.monto ELSE 0 END) AS recaudado,
-            SUM(CASE WHEN c.estado = 'pendiente' THEN c.monto ELSE 0 END) AS pendiente
-        FROM cuotas c
-        JOIN socios s ON s.id = c.socio_id
-        WHERE s.fecha_baja IS NULL
-          AND c.periodo = ?
-        """,
-        (periodo,),
-    ).fetchone()
-
-    cuotas_global = conn.execute(
-        """
-        SELECT
-            COUNT(*) AS total,
-            SUM(CASE WHEN c.estado = 'pagada' THEN 1 ELSE 0 END) AS pagadas,
-            SUM(CASE WHEN c.estado = 'pendiente' THEN 1 ELSE 0 END) AS pendientes,
-            SUM(CASE WHEN c.estado = 'pagada' THEN c.monto ELSE 0 END) AS recaudado,
-            SUM(CASE WHEN c.estado = 'pendiente' THEN c.monto ELSE 0 END) AS pendiente
-        FROM cuotas c
-        JOIN socios s ON s.id = c.socio_id
-        WHERE s.fecha_baja IS NULL
-        """
-    ).fetchone()
-
-    por_cobrador = conn.execute(
-        """
-        SELECT
-            s.cobrador,
-            COUNT(c.id) AS cuotas,
-            SUM(CASE WHEN c.estado = 'pagada' THEN c.monto ELSE 0 END) AS recaudado,
-            SUM(CASE WHEN c.estado = 'pendiente' THEN c.monto ELSE 0 END) AS pendiente
-        FROM cuotas c
-        JOIN socios s ON s.id = c.socio_id
-        WHERE s.fecha_baja IS NULL
-          AND c.periodo = ?
-        GROUP BY s.cobrador
-        ORDER BY s.cobrador
-        """,
-        (periodo,),
-    ).fetchall()
+    socios = dashboard_repository.socios_summary(conn)
+    cuotas_periodo = dashboard_repository.cuotas_period_summary(conn, periodo)
+    cuotas_global = dashboard_repository.cuotas_global_summary(conn)
+    por_cobrador = dashboard_repository.cuotas_by_cobrador(conn, periodo)
 
     def number(row, key):
         return row[key] or 0

@@ -1,5 +1,6 @@
 from app.settings import COBRADORES
 from app.models.helpers import now_iso, parse_decimal
+from app.repositories import config_repository
 
 
 CONFIG_DEFAULTS = {
@@ -12,7 +13,7 @@ CONFIG_DEFAULTS = {
 
 
 def get_config(conn) -> dict:
-    rows = conn.execute("SELECT clave, valor FROM configuracion").fetchall()
+    rows = config_repository.list_config(conn)
     config = CONFIG_DEFAULTS.copy()
     hidden = {
         "admin_key_hash",
@@ -75,38 +76,22 @@ def update_config(conn, data: dict) -> None:
     values["moroso_cuotas_limite"] = str(moroso_cuotas_limite)
 
     for key, value in values.items():
-        conn.execute(
-            "INSERT INTO configuracion (clave, valor) VALUES (?, ?) "
-            "ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
-            (key, value),
-        )
+        config_repository.upsert_config_value(conn, key, value)
 
 
 def cuota_monto(conn, estado: str) -> float:
-    row = conn.execute("SELECT monto FROM tipos_socio WHERE id = ?", (estado,)).fetchone()
+    row = config_repository.cuota_monto(conn, estado)
     if row:
         return float(row["monto"] or 0)
     return 0.0
 
 
 def listar_tipos_socio(conn, solo_activos: bool = False) -> list[dict]:
-    where = "WHERE activo = 1" if solo_activos else ""
-    return [
-        dict(row)
-        for row in conn.execute(
-            f"SELECT id, nombre, monto, activo FROM tipos_socio {where} ORDER BY nombre COLLATE NOCASE"
-        ).fetchall()
-    ]
+    return [dict(row) for row in config_repository.list_tipos_socio(conn, solo_activos)]
 
 
 def listar_cobradores(conn, solo_activos: bool = False) -> list[dict]:
-    where = "WHERE activo = 1" if solo_activos else ""
-    return [
-        dict(row)
-        for row in conn.execute(
-            f"SELECT id, nombre, activo FROM cobradores {where} ORDER BY id"
-        ).fetchall()
-    ]
+    return [dict(row) for row in config_repository.list_cobradores(conn, solo_activos)]
 
 
 def _slug(value: str) -> str:
@@ -125,14 +110,7 @@ def crear_tipo_socio(conn, data: dict) -> dict:
     if monto < 0:
         raise ValueError("El monto no puede ser negativo.")
     tipo_id = _slug(str(data.get("id") or nombre))
-    timestamp = now_iso()
-    conn.execute(
-        """
-        INSERT INTO tipos_socio (id, nombre, monto, activo, creado_en, actualizado_en)
-        VALUES (?, ?, ?, 1, ?, ?)
-        """,
-        (tipo_id, nombre, monto, timestamp, timestamp),
-    )
+    config_repository.insert_tipo_socio(conn, tipo_id, nombre, monto, now_iso())
     return {"id": tipo_id}
 
 
@@ -144,25 +122,16 @@ def actualizar_tipo_socio(conn, tipo_id: str, data: dict) -> None:
         raise ValueError("El nombre del tipo de socio es obligatorio.")
     if monto < 0:
         raise ValueError("El monto no puede ser negativo.")
-    cursor = conn.execute(
-        """
-        UPDATE tipos_socio
-        SET nombre = ?, monto = ?, activo = ?, actualizado_en = ?
-        WHERE id = ?
-        """,
-        (nombre, monto, activo, now_iso(), tipo_id),
-    )
-    if cursor.rowcount == 0:
+    if config_repository.update_tipo_socio(conn, tipo_id, nombre, monto, activo, now_iso()) == 0:
         raise LookupError("Tipo de socio no encontrado")
 
 
 def baja_tipo_socio(conn, tipo_id: str) -> None:
-    usados = conn.execute("SELECT COUNT(*) AS total FROM socios WHERE estado = ?", (tipo_id,)).fetchone()["total"]
+    usados = config_repository.count_socios_by_tipo(conn, tipo_id)
     if usados:
-        conn.execute("UPDATE tipos_socio SET activo = 0, actualizado_en = ? WHERE id = ?", (now_iso(), tipo_id))
+        config_repository.deactivate_tipo_socio(conn, tipo_id, now_iso())
         return
-    cursor = conn.execute("DELETE FROM tipos_socio WHERE id = ?", (tipo_id,))
-    if cursor.rowcount == 0:
+    if config_repository.delete_tipo_socio(conn, tipo_id) == 0:
         raise LookupError("Tipo de socio no encontrado")
 
 
@@ -170,12 +139,7 @@ def crear_cobrador(conn, data: dict) -> dict:
     nombre = str(data.get("nombre", "")).strip()
     if not nombre:
         raise ValueError("El nombre del cobrador es obligatorio.")
-    timestamp = now_iso()
-    cursor = conn.execute(
-        "INSERT INTO cobradores (nombre, activo, creado_en, actualizado_en) VALUES (?, 1, ?, ?)",
-        (nombre, timestamp, timestamp),
-    )
-    return {"id": cursor.lastrowid}
+    return {"id": config_repository.insert_cobrador(conn, nombre, now_iso())}
 
 
 def actualizar_cobrador(conn, cobrador_id: int, data: dict) -> None:
@@ -183,19 +147,14 @@ def actualizar_cobrador(conn, cobrador_id: int, data: dict) -> None:
     activo = 1 if str(data.get("activo", "1")) in {"1", "true", "on", "si"} else 0
     if not nombre:
         raise ValueError("El nombre del cobrador es obligatorio.")
-    cursor = conn.execute(
-        "UPDATE cobradores SET nombre = ?, activo = ?, actualizado_en = ? WHERE id = ?",
-        (nombre, activo, now_iso(), cobrador_id),
-    )
-    if cursor.rowcount == 0:
+    if config_repository.update_cobrador(conn, cobrador_id, nombre, activo, now_iso()) == 0:
         raise LookupError("Cobrador no encontrado")
 
 
 def baja_cobrador(conn, cobrador_id: int) -> None:
-    usados = conn.execute("SELECT COUNT(*) AS total FROM socios WHERE cobrador = ?", (cobrador_id,)).fetchone()["total"]
+    usados = config_repository.count_socios_by_cobrador(conn, cobrador_id)
     if usados:
-        conn.execute("UPDATE cobradores SET activo = 0, actualizado_en = ? WHERE id = ?", (now_iso(), cobrador_id))
+        config_repository.deactivate_cobrador(conn, cobrador_id, now_iso())
         return
-    cursor = conn.execute("DELETE FROM cobradores WHERE id = ?", (cobrador_id,))
-    if cursor.rowcount == 0:
+    if config_repository.delete_cobrador(conn, cobrador_id) == 0:
         raise LookupError("Cobrador no encontrado")
