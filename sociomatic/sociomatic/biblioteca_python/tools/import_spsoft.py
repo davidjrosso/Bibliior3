@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 import shutil
 import sqlite3
 import struct
 import sys
+import unicodedata
 import zipfile
 from collections import Counter, defaultdict
 from datetime import date, datetime
@@ -13,6 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from app.models.helpers import add_months
+
 DEFAULT_ZIP = Path.home() / "Downloads" / "spsoft-20260725T174059Z-1-001.zip"
 DEFAULT_SOURCE_DIR = ROOT.parents[2] / "Soft Biblio - NO TOCAR-20260817T193633Z-1-001" / "Soft Biblio - NO TOCAR"
 DEFAULT_SP01 = ROOT / "data" / "analisis_sp01_koha" / "sp01_parseado.csv"
@@ -26,6 +30,36 @@ ZONA_COBRADOR = {
     4: 4,
     6: 5,
 }
+MONTH_ALIASES = [
+    ("SEPTIEMBRE", 9),
+    ("SETIEMBRE", 9),
+    ("FEBRERO", 2),
+    ("AGOSTO", 8),
+    ("OCTUBRE", 10),
+    ("NOVIEMBRE", 11),
+    ("DICIEMBRE", 12),
+    ("MARZO", 3),
+    ("ABRIL", 4),
+    ("ENERO", 1),
+    ("JUNIO", 6),
+    ("JULIO", 7),
+    ("MAYO", 5),
+    ("SEPT", 9),
+    ("SEP", 9),
+    ("SET", 9),
+    ("FEB", 2),
+    ("AGO", 8),
+    ("AG", 8),
+    ("OCT", 10),
+    ("NOV", 11),
+    ("DIC", 12),
+    ("MAR", 3),
+    ("ABR", 4),
+    ("AB", 4),
+    ("ENE", 1),
+    ("JUN", 6),
+    ("JUL", 7),
+]
 
 
 def now_iso() -> str:
@@ -81,6 +115,20 @@ def as_int(value) -> int | None:
         return int(float(str(value).strip()))
     except (TypeError, ValueError):
         return None
+
+
+def parse_year(value: str | int | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        number = int(str(value))
+    except ValueError:
+        return None
+    if 2000 <= number <= 2099:
+        return number
+    if 0 <= number <= 99:
+        return 2000 + number
+    return None
 
 
 class DbfTable:
@@ -188,6 +236,156 @@ def es_registro_especial(row: dict) -> bool:
 def es_socio_importable(row: dict) -> bool:
     zona = as_int(row.get("ZONA"))
     return zona in ZONA_COBRADOR and not es_registro_especial(row)
+
+
+def normalizar_nota_zona4(value: str | None) -> str:
+    text = str(value or "").replace("\ufffd", "N").strip().upper()
+    text = text.replace("Ñ", "N")
+    text = unicodedata.normalize("NFD", text)
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    text = re.sub(r"[^A-Z0-9/]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def token_es_anio(token: str) -> bool:
+    if token in {"ANO", "AN", "AN0"}:
+        return True
+    if token.startswith("AN") and any(ch.isdigit() for ch in token):
+        return True
+    return token.startswith("A") and token.endswith("O") and any(ch.isdigit() for ch in token)
+
+
+def anio_probable(token: str) -> int | None:
+    for match in reversed(re.findall(r"20\d{2}|\d{2}", token)):
+        year = parse_year(match)
+        if year and 2020 <= year <= 2035:
+            return year
+    return None
+
+
+def extraer_meses(text: str) -> list[tuple[int, int | None, int]]:
+    tokens = normalizar_nota_zona4(text).replace("/", " ").split()
+    found = []
+    for idx, token in enumerate(tokens):
+        for alias, month in MONTH_ALIASES:
+            if not token.startswith(alias):
+                continue
+            rest = token[len(alias) :]
+            year = anio_probable(rest)
+            if year is None and idx + 1 < len(tokens):
+                year = anio_probable(tokens[idx + 1])
+            found.append((month, year, idx))
+            break
+    return found
+
+
+def periodos_entre(desde: str, hasta: str) -> list[str]:
+    if desde > hasta:
+        return []
+    periodos = []
+    periodo = desde
+    while periodo <= hasta:
+        periodos.append(periodo)
+        periodo = add_months(periodo, 1)
+    return periodos
+
+
+def rango_pagado_zona4(nota: str | None) -> tuple[str | None, str | None, str]:
+    raw = str(nota or "").strip()
+    normalizada = normalizar_nota_zona4(raw)
+    if not normalizada or normalizada == "(VACIO)":
+        return None, None, "sin dato"
+    if "DEUDA" in normalizada:
+        return None, None, "requiere revision: deuda"
+
+    tokens = normalizada.split()
+    year_words = [token for token in tokens if token_es_anio(token)]
+    if year_words:
+        year = None
+        for token in reversed(tokens):
+            year = anio_probable(token)
+            if year:
+                break
+        if year:
+            return f"{year}-01", f"{year}-12", "anio completo"
+
+    meses = extraer_meses(raw)
+    if not meses:
+        return None, None, "no interpretado"
+
+    tiene_rango = "/" in normalizada or " A " in f" {normalizada} "
+    if tiene_rango and len(meses) >= 2:
+        start_month, start_year, _ = meses[0]
+        end_month, end_year, _ = meses[-1]
+        if start_year is None:
+            start_year = end_year
+        if end_year is None:
+            end_year = start_year
+        if start_year and end_year:
+            return f"{start_year}-{start_month:02d}", f"{end_year}-{end_month:02d}", "rango explicito"
+
+    month, year, _ = meses[-1]
+    if year:
+        start_year = 2026 if year > 2026 else year
+        return f"{start_year}-01", f"{year}-{month:02d}", "hasta mes indicado"
+    return None, None, "sin anio"
+
+
+def aplicar_pagos_zona4(conn: sqlite3.Connection, cliente_rows: list[dict], timestamp: str) -> Counter:
+    from app.models import config_model
+
+    stats = Counter()
+    fecha_pago = timestamp[:10]
+    for row_cliente in cliente_rows:
+        if as_int(row_cliente.get("ZONA")) != 4:
+            continue
+        nro = as_int(row_cliente.get("NCLI"))
+        desde, hasta, motivo = rango_pagado_zona4(row_cliente.get("DGR"))
+        if not desde or not hasta:
+            stats["zona4_revision_manual"] += 1
+            continue
+        socio = conn.execute(
+            "SELECT id, estado FROM socios WHERE nro_socio = ? AND fecha_baja IS NULL AND cobrador = 4",
+            (nro,),
+        ).fetchone()
+        if not socio:
+            stats["zona4_socio_no_encontrado"] += 1
+            continue
+        monto = config_model.cuota_monto(conn, socio["estado"])
+        observacion = (
+            f"Importado SPSoft Zona 4/Ingr. Brutos: {str(row_cliente.get('DGR') or '').strip()} "
+            f"({motivo}, {desde} a {hasta})."
+        )
+        for periodo in periodos_entre(desde, hasta):
+            existing = conn.execute(
+                "SELECT id, estado FROM cuotas WHERE socio_id = ? AND periodo = ?",
+                (socio["id"], periodo),
+            ).fetchone()
+            if existing and existing["estado"] == "pagada":
+                stats["zona4_cuotas_ya_pagadas"] += 1
+                continue
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE cuotas
+                    SET estado = 'pagada', fecha_pago = ?, observacion = ?, actualizado_en = ?
+                    WHERE id = ?
+                    """,
+                    (fecha_pago, observacion, timestamp, existing["id"]),
+                )
+                stats["zona4_cuotas_marcadas_pagadas"] += 1
+                continue
+            conn.execute(
+                """
+                INSERT INTO cuotas (socio_id, periodo, monto, estado, fecha_pago, observacion, creado_en, actualizado_en)
+                VALUES (?, ?, ?, 'pagada', ?, ?, ?, ?)
+                """,
+                (socio["id"], periodo, monto, fecha_pago, observacion, timestamp, timestamp),
+            )
+            stats["zona4_cuotas_creadas_pagadas"] += 1
+        stats["zona4_socios_aplicados"] += 1
+    return stats
 
 
 def build_socios(
@@ -357,6 +555,7 @@ def import_data(args) -> dict:
                 (socio_id, periodo, monto, estado, fecha_pago, observacion, timestamp, timestamp),
             )
             stats[f"cuotas_{estado}"] += 1
+        stats.update(aplicar_pagos_zona4(conn, cliente_rows, timestamp))
         dias = set()
         for row in caja_rows:
             if row.get("ANULA") == "A" or row.get("TIPO") != "EF":
