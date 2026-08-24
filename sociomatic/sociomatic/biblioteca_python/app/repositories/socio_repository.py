@@ -10,17 +10,24 @@ def find_by_id(conn: Connection, socio_id: int) -> Row | None:
     return conn.execute("SELECT * FROM socios WHERE id = ?", (socio_id,)).fetchone()
 
 
-def list_ids(conn: Connection, busqueda: str = "", incluir_bajas: bool = False) -> list[int]:
+def list_ids(conn: Connection, busqueda: str = "", incluir_bajas: bool = False, buscar_todos: bool = False) -> list[int]:
     where = ["1=1"]
     params: list[object] = []
     if not incluir_bajas:
         where.append("fecha_baja IS NULL")
     if busqueda:
-        where.append(
-            "(CAST(nro_socio AS TEXT) = ? OR apellido LIKE ? OR nombre LIKE ? OR dni LIKE ? OR telefono LIKE ? OR email LIKE ?)"
-        )
-        like = f"%{busqueda}%"
-        params.extend([busqueda, like, like, like, like, like])
+        if buscar_todos:
+            where.append(
+                "("
+                "CAST(nro_socio AS TEXT) = ? OR apellido LIKE ? OR nombre LIKE ? OR dni LIKE ? "
+                "OR telefono LIKE ? OR email LIKE ? OR direccion LIKE ? OR barrio LIKE ? OR localidad LIKE ?"
+                ")"
+            )
+            like = f"%{busqueda}%"
+            params.extend([busqueda, like, like, like, like, like, like, like, like])
+        else:
+            where.append("nro_socio = ?")
+            params.append(int(busqueda) if busqueda.isdigit() else -1)
     rows = conn.execute(
         f"""
         SELECT id FROM socios

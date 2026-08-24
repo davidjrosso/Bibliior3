@@ -347,6 +347,9 @@ label {
 }
 
 .toolbar input { min-width: 0; }
+.toolbar .search-mode-toggle {
+  white-space: nowrap;
+}
 .next-number { color: var(--muted); margin: 12px 0; }
 .table-wrap { overflow: auto; max-height: 64vh; }
 

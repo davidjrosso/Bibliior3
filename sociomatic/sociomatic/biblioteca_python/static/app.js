@@ -70,6 +70,18 @@ function periodoDefault() {
   return state.config.periodo_default === 'actual' ? periodoActual() : periodoSiguiente();
 }
 
+function modoBusquedaSocio(selector) {
+  return $(selector)?.checked ? 'todos' : 'nro';
+}
+
+function actualizarModoBusquedaSocio(inputSelector, toggleSelector) {
+  const input = $(inputSelector);
+  if (!input) return;
+  input.placeholder = modoBusquedaSocio(toggleSelector) === 'todos'
+    ? 'Nombre, apellido, DNI, direccion, telefono o correo'
+    : 'Nro. de socio';
+}
+
 async function api(url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -499,7 +511,7 @@ async function cargarDashboard() {
 
 async function cargarSocios() {
   const q = encodeURIComponent($('#buscar') ? $('#buscar').value.trim() : '');
-  const data = await api(`/api/socios?q=${q}`);
+  const data = await api(`/api/socios?q=${q}&modo_busqueda=todos`);
   state.socios = data.socios;
   if ($('#proximoNro')) $('#proximoNro').textContent = data.proximo_nro_socio;
   $('#proximoNroCrud').textContent = data.proximo_nro_socio;
@@ -510,7 +522,8 @@ async function cargarSocios() {
 
 async function cargarSociosCrud() {
   const q = encodeURIComponent($('#buscarSocioCrud').value.trim());
-  const data = await api(`/api/socios?q=${q}`);
+  const modo = modoBusquedaSocio('#buscarSocioCrudTodos');
+  const data = await api(`/api/socios?q=${q}&modo_busqueda=${modo}`);
   state.socios = data.socios;
   if ($('#proximoNro')) $('#proximoNro').textContent = data.proximo_nro_socio;
   $('#proximoNroCrud').textContent = data.proximo_nro_socio;
@@ -965,11 +978,13 @@ async function buscarSociosPagoAdelantado() {
   form.socio_id.value = '';
   $('#pagoAdelantadoSocioSeleccionado').textContent = 'Seleccione un socio.';
   $('#pagoAdelantadoSocioSeleccionado').classList.remove('ready');
-  if (q.length < 2) {
-    renderResultadosSocioPago([], 'Escriba al menos 2 caracteres para buscar.');
+  const modo = modoBusquedaSocio('#pagoAdelantadoSocioBuscarTodos');
+  const minimo = modo === 'todos' ? 2 : 1;
+  if (q.length < minimo) {
+    renderResultadosSocioPago([], `Escriba al menos ${minimo} caracter${minimo === 1 ? '' : 'es'} para buscar.`);
     return;
   }
-  const data = await api(`/api/socios?q=${encodeURIComponent(q)}`);
+  const data = await api(`/api/socios?q=${encodeURIComponent(q)}&modo_busqueda=${modo}`);
   renderResultadosSocioPago(data.socios || []);
 }
 
@@ -980,7 +995,7 @@ function abrirPagoAdelantado() {
   $('#pagoAdelantadoSocioBuscar').value = '';
   $('#pagoAdelantadoSocioSeleccionado').textContent = 'Seleccione un socio.';
   $('#pagoAdelantadoSocioSeleccionado').classList.remove('ready');
-  renderResultadosSocioPago([], 'Busque por nombre, apellido, DNI o nro. de socio.');
+  renderResultadosSocioPago([], 'Busque por nro. de socio. Active la busqueda amplia para nombre, DNI, direccion, telefono o correo.');
   const selected = state.socioCrudId || state.selectedId;
   if (selected) {
     const socio = state.socios.find(item => Number(item.id) === Number(selected));
@@ -1349,6 +1364,8 @@ async function init() {
   $('#formCajaDia').fecha.value = fechaActual();
   $('#formCajaListado').desde.value = fechaHace(30);
   $('#formCajaListado').hasta.value = fechaActual();
+  actualizarModoBusquedaSocio('#buscarSocioCrud', '#buscarSocioCrudTodos');
+  actualizarModoBusquedaSocio('#pagoAdelantadoSocioBuscar', '#pagoAdelantadoSocioBuscarTodos');
 
   if ($('#btnBuscar')) $('#btnBuscar').addEventListener('click', cargarSocios);
   if ($('#buscar')) {
@@ -1391,6 +1408,10 @@ async function init() {
   $('#buscarSocioCrud').addEventListener('keydown', (event) => {
     if (event.key === 'Enter') cargarSociosCrud();
   });
+  $('#buscarSocioCrudTodos').addEventListener('change', () => {
+    actualizarModoBusquedaSocio('#buscarSocioCrud', '#buscarSocioCrudTodos');
+    cargarSociosCrud().catch(error => toast(error.message));
+  });
   $('#btnSocioNuevoModo').addEventListener('click', () => abrirModalSocio());
   $('#btnSocioEditarCrud').addEventListener('click', () => {
     if (state.socioCrudId) abrirModalSocio(state.socioCrudId);
@@ -1413,6 +1434,10 @@ async function init() {
     pagoAdelantadoSearchTimer = setTimeout(() => {
       buscarSociosPagoAdelantado().catch(error => toast(error.message));
     }, 250);
+  });
+  $('#pagoAdelantadoSocioBuscarTodos').addEventListener('change', () => {
+    actualizarModoBusquedaSocio('#pagoAdelantadoSocioBuscar', '#pagoAdelantadoSocioBuscarTodos');
+    buscarSociosPagoAdelantado().catch(error => toast(error.message));
   });
   $('#btnActualizarMorosos').addEventListener('click', cargarMorosos);
   $('#btnImprimirMorosos').addEventListener('click', () => window.open('/imprimir-morosos', '_blank'));

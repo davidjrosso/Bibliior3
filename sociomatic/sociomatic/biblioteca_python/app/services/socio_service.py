@@ -2,17 +2,17 @@ from app.models import config_model, socio_model
 from app.services import security_service
 
 
-def listar(conn, busqueda: str = "", incluir_bajas: bool = False) -> list[dict]:
-    return socio_model.listar(conn, busqueda, incluir_bajas)
+def listar(conn, busqueda: str = "", incluir_bajas: bool = False, buscar_todos: bool = False) -> list[dict]:
+    return socio_model.listar(conn, busqueda, incluir_bajas, buscar_todos)
 
 
 def proximo_nro_socio(conn) -> int:
     return socio_model.proximo_nro_socio(conn)
 
 
-def index_data(conn, busqueda: str = "", incluir_bajas: bool = False) -> dict:
+def index_data(conn, busqueda: str = "", incluir_bajas: bool = False, buscar_todos: bool = False) -> dict:
     return {
-        "socios": listar(conn, busqueda, incluir_bajas),
+        "socios": listar(conn, busqueda, incluir_bajas, buscar_todos),
         "proximo_nro_socio": proximo_nro_socio(conn),
         "cobradores": config_model.listar_cobradores(conn),
         "tipos_socio": config_model.listar_tipos_socio(conn),

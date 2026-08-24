@@ -62,8 +62,8 @@ def socio_con_resumen(conn, socio_id: int) -> dict | None:
     return socio
 
 
-def listar(conn, busqueda: str = "", incluir_bajas: bool = False) -> list[dict]:
-    ids = socio_repository.list_ids(conn, busqueda, incluir_bajas)
+def listar(conn, busqueda: str = "", incluir_bajas: bool = False, buscar_todos: bool = False) -> list[dict]:
+    ids = socio_repository.list_ids(conn, busqueda, incluir_bajas, buscar_todos)
     return [socio for socio_id in ids if (socio := socio_con_resumen(conn, socio_id))]
 
 

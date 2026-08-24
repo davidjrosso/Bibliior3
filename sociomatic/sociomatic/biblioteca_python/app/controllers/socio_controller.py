@@ -7,9 +7,10 @@ from app.services import security_service, socio_service
 def index(handler, conn, query):
     busqueda = (query.get("q", [""])[0] or "").strip()
     incluir_bajas = query.get("incluir_bajas", ["0"])[0] == "1"
+    buscar_todos = query.get("modo_busqueda", ["nro"])[0] == "todos"
     json_response(
         handler,
-        {"exito": True, **socio_service.index_data(conn, busqueda, incluir_bajas)},
+        {"exito": True, **socio_service.index_data(conn, busqueda, incluir_bajas, buscar_todos)},
     )
 
 

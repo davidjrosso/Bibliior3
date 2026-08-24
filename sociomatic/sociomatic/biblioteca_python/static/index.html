@@ -317,7 +317,11 @@
       <div class="crud-layout">
         <section class="crud-list">
           <div class="toolbar">
-            <input id="buscarSocioCrud" type="search" placeholder="Buscar socio">
+            <input id="buscarSocioCrud" type="search" placeholder="Nro. de socio">
+            <label class="check-label search-mode-toggle">
+              <input id="buscarSocioCrudTodos" type="checkbox">
+              Buscar en todos los datos
+            </label>
             <button id="btnBuscarSocioCrud" type="button">Buscar</button>
           </div>
           <button id="btnSocioNuevoModo" type="button">Nuevo</button>
@@ -698,7 +702,11 @@
       <h2>Pago adelantado</h2>
       <div class="wide socio-search-field">
         <label>Buscar socio
-          <input id="pagoAdelantadoSocioBuscar" type="search" placeholder="Nombre, apellido, DNI o nro. de socio" autocomplete="off">
+          <input id="pagoAdelantadoSocioBuscar" type="search" placeholder="Nro. de socio" autocomplete="off">
+        </label>
+        <label class="check-label search-mode-toggle">
+          <input id="pagoAdelantadoSocioBuscarTodos" type="checkbox">
+          Buscar en todos los datos
         </label>
         <input name="socio_id" type="hidden" required>
         <div id="pagoAdelantadoSocioSeleccionado" class="selected-member">Seleccione un socio.</div>
