@@ -135,6 +135,53 @@ h1, h2, h3, p { margin: 0; }
   background: rgba(255,255,255,.07);
 }
 
+.workday-control {
+  display: grid;
+  grid-template-columns: 132px auto minmax(88px, auto);
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 8px;
+  background: rgba(255,255,255,.07);
+  color: #eef7f5;
+}
+
+.workday-control span {
+  grid-column: 1 / -1;
+  color: #b7ccc7;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.workday-control input {
+  width: 132px;
+  min-height: 32px;
+  padding: 6px 7px;
+  border-color: rgba(255,255,255,.18);
+  background: #fff;
+  font-size: 13px;
+}
+
+.workday-control button {
+  min-height: 32px;
+  padding: 6px 8px;
+}
+
+.workday-control strong {
+  min-width: 88px;
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.workday-control.outdated {
+  border-color: rgba(201, 133, 43, .58);
+  background: rgba(201, 133, 43, .18);
+}
+
 .nav-menu {
   position: relative;
 }
@@ -349,6 +396,16 @@ label {
 .toolbar input { min-width: 0; }
 .toolbar .search-mode-toggle {
   white-space: nowrap;
+}
+
+.filters .search-mode-toggle {
+  min-height: 48px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.cuotas-search-mode {
+  padding: 0 10px;
 }
 .next-number { color: var(--muted); margin: 12px 0; }
 .table-wrap { overflow: auto; max-height: 64vh; }
@@ -609,6 +666,10 @@ tbody tr:hover, tbody tr.selected { background: #edf7f5; }
   gap: 8px;
   align-items: center;
   margin-bottom: 12px;
+}
+
+#formFiltroCuotas {
+  grid-template-columns: minmax(220px, 1.4fr) auto repeat(3, minmax(140px, 1fr)) auto;
 }
 
 .summary-grid {
@@ -1073,6 +1134,10 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
   .topbar, .cuotas-tools { flex-direction: column; align-items: stretch; }
   .app-nav { flex-wrap: wrap; }
   .topbar-version { align-self: flex-start; }
+  .workday-control {
+    grid-template-columns: minmax(140px, 1fr) auto auto;
+    align-self: stretch;
+  }
   .brand-block { min-width: 0; }
   .brand-logo { max-width: 260px; width: 100%; }
   .nav-panel { position: static; margin-top: 6px; }

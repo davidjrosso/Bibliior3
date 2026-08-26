@@ -162,6 +162,7 @@ def listar(conn, query: dict) -> list[dict]:
     estado = (query.get("estado", [""])[0] or "").strip()
     cobrador = (query.get("cobrador", [""])[0] or "").strip()
     busqueda = (query.get("q", [""])[0] or "").strip()
+    buscar_todos = (query.get("modo_busqueda", ["nro"])[0] or "nro").strip() == "todos"
     where = ["s.fecha_baja IS NULL"]
     params = []
     if periodo:
@@ -176,11 +177,18 @@ def listar(conn, query: dict) -> list[dict]:
         where.append("s.cobrador = ?")
         params.append(int(cobrador))
     if busqueda:
-        where.append(
-            "(CAST(s.nro_socio AS TEXT) = ? OR s.apellido LIKE ? OR s.nombre LIKE ? OR s.dni LIKE ? OR s.direccion LIKE ?)"
-        )
-        like = f"%{busqueda}%"
-        params.extend([busqueda, like, like, like, like])
+        if buscar_todos:
+            where.append(
+                "("
+                "CAST(s.nro_socio AS TEXT) = ? OR s.apellido LIKE ? OR s.nombre LIKE ? OR s.dni LIKE ? "
+                "OR s.telefono LIKE ? OR s.email LIKE ? OR s.direccion LIKE ? OR s.barrio LIKE ? OR s.localidad LIKE ?"
+                ")"
+            )
+            like = f"%{busqueda}%"
+            params.extend([busqueda, like, like, like, like, like, like, like, like])
+        else:
+            where.append("s.nro_socio = ?")
+            params.append(int(busqueda) if busqueda.isdigit() else -1)
     rows = cuota_repository.list_with_socios(conn, " AND ".join(where), params)
     cuotas = []
     for row in rows:

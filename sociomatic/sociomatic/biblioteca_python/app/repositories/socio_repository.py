@@ -54,7 +54,7 @@ def cuota_summary(conn: Connection, socio_id: int, periodo_actual: str) -> Row:
 
 def list_cuotas(conn: Connection, socio_id: int) -> list[Row]:
     return conn.execute(
-        "SELECT * FROM cuotas WHERE socio_id = ? ORDER BY periodo ASC",
+        "SELECT * FROM cuotas WHERE socio_id = ? ORDER BY periodo ASC, COALESCE(fecha_pago, '') ASC, id ASC",
         (socio_id,),
     ).fetchall()
 

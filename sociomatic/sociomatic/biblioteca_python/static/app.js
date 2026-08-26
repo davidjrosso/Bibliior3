@@ -17,6 +17,7 @@ const state = {
   cobradores: [],
   auditoria: [],
   usuario: '',
+  diaTrabajo: '',
   socioCrudCuotas: [],
   socioCuotasFiltro: 'pendiente',
   caja: {
@@ -36,6 +37,7 @@ let adminKeyReject = null;
 let authEventsBound = false;
 let pagoAdelantadoSearchTimer = null;
 let cuotasSeleccionadasSocio = new Set();
+const DIA_TRABAJO_KEY = 'biblioteca_dia_trabajo';
 
 function periodoSiguiente() {
   const now = new Date();
@@ -64,6 +66,83 @@ function fechaHace(dias) {
   const date = new Date();
   date.setDate(date.getDate() - dias);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function fechaHaceDesde(fecha, dias) {
+  const [year, month, day] = fecha.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() - dias);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function fechaValida(fecha) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(fecha || '');
+}
+
+function diaTrabajoGuardado() {
+  const guardado = localStorage.getItem(DIA_TRABAJO_KEY);
+  return fechaValida(guardado) ? guardado : fechaActual();
+}
+
+function diaTrabajo() {
+  return fechaValida(state.diaTrabajo) ? state.diaTrabajo : fechaActual();
+}
+
+function diaTrabajoTexto(fecha) {
+  const [year, month, day] = fecha.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function actualizarDiaTrabajoUI() {
+  const fecha = diaTrabajo();
+  const input = $('#diaTrabajoInput');
+  if (input) input.value = fecha;
+  const estado = $('#diaTrabajoEstado');
+  if (estado) estado.textContent = fecha === fechaActual() ? 'Hoy' : diaTrabajoTexto(fecha);
+  const control = $('.workday-control');
+  if (control) control.classList.toggle('outdated', fecha !== fechaActual());
+}
+
+function aplicarDiaTrabajoAFormularios() {
+  const fecha = diaTrabajo();
+  if ($('#formCajaDia')) $('#formCajaDia').fecha.value = fecha;
+  if ($('#socioPagoFecha')) $('#socioPagoFecha').value = fecha;
+  if ($('#formPagoAdelantado')) $('#formPagoAdelantado').fecha_pago.value = fecha;
+  if ($('#formCajaListado')) {
+    $('#formCajaListado').desde.value = fechaHaceDesde(fecha, 30);
+    $('#formCajaListado').hasta.value = fecha;
+  }
+}
+
+function sincronizarCamposDiaTrabajo() {
+  const fecha = diaTrabajo();
+  if ($('#socioPagoFecha')) $('#socioPagoFecha').value = fecha;
+  if ($('#formPagoAdelantado')) $('#formPagoAdelantado').fecha_pago.value = fecha;
+  const formCajaMovimiento = $('#formCajaMovimiento');
+  if (formCajaMovimiento && !formCajaMovimiento.id.value) {
+    formCajaMovimiento.fecha.value = fecha;
+  }
+}
+
+async function cambiarDiaTrabajo(fecha, pedirConfirmacion = true) {
+  if (!fechaValida(fecha) || fecha === diaTrabajo()) {
+    actualizarDiaTrabajoUI();
+    return;
+  }
+  if (pedirConfirmacion && !confirm(`Cambiar el dia de trabajo a ${diaTrabajoTexto(fecha)}?\n\nLas proximas cargas de caja y cobros usaran esa fecha.`)) {
+    actualizarDiaTrabajoUI();
+    return;
+  }
+  state.diaTrabajo = fecha;
+  localStorage.setItem(DIA_TRABAJO_KEY, fecha);
+  aplicarDiaTrabajoAFormularios();
+  sincronizarCamposDiaTrabajo();
+  actualizarDiaTrabajoUI();
+  if ($('#paginaCaja') && !$('#paginaCaja').hidden) {
+    await cargarCaja();
+    await cargarCajaListado();
+  }
+  toast(`Dia de trabajo: ${diaTrabajoTexto(fecha)}`);
 }
 
 function periodoDefault() {
@@ -450,7 +529,7 @@ async function borrarCobrador(id) {
 async function pagarCuota(cuotaId) {
   const request = {
     method: 'POST',
-    body: JSON.stringify({ fecha_pago: fechaActual(), medio_pago: 'efectivo' })
+    body: JSON.stringify({ fecha_pago: diaTrabajo(), medio_pago: 'efectivo' })
   };
   return apiConClaveSiHaceFalta(`/api/cuotas/${cuotaId}/pagar`, request, 'Autorizar pago con caja cerrada.');
 }
@@ -461,7 +540,8 @@ async function pagarCuotasSocioSeleccionadas() {
     toast('Seleccione al menos una cuota impaga');
     return;
   }
-  const fechaPago = $('#socioPagoFecha').value || fechaActual();
+  const fechaPago = diaTrabajo();
+  $('#socioPagoFecha').value = fechaPago;
   const medioPago = $('#socioPagoMedio').value || 'efectivo';
   const total = state.socioCrudCuotas
     .filter(cuota => cuotasSeleccionadasSocio.has(Number(cuota.id)))
@@ -689,7 +769,7 @@ async function cargarSocioEnCrud(id) {
   state.socioCrudCuotas = data.cuotas || [];
   cuotasSeleccionadasSocio = new Set();
   $('#socioCuotasToolbar').hidden = false;
-  if (!$('#socioPagoFecha').value) $('#socioPagoFecha').value = fechaActual();
+  $('#socioPagoFecha').value = diaTrabajo();
   renderCuotasSocioCrud();
   $('#btnSocioBajaCrud').disabled = false;
   $('#btnSocioEditarCrud').disabled = false;
@@ -698,8 +778,16 @@ async function cargarSocioEnCrud(id) {
 
 function cuotasSocioFiltradas() {
   const filtro = state.socioCuotasFiltro || 'pendiente';
-  if (filtro === 'todas') return state.socioCrudCuotas;
-  return state.socioCrudCuotas.filter(cuota => cuota.estado === filtro);
+  const cuotas = filtro === 'todas'
+    ? state.socioCrudCuotas
+    : state.socioCrudCuotas.filter(cuota => cuota.estado === filtro);
+  return cuotas.slice().sort((a, b) => {
+    const periodo = String(a.periodo || '').localeCompare(String(b.periodo || ''));
+    if (periodo !== 0) return periodo;
+    const fechaPago = String(a.fecha_pago || '').localeCompare(String(b.fecha_pago || ''));
+    if (fechaPago !== 0) return fechaPago;
+    return Number(a.id || 0) - Number(b.id || 0);
+  });
 }
 
 function actualizarResumenPagoSocio() {
@@ -1002,13 +1090,13 @@ function abrirPagoAdelantado() {
     if (socio) seleccionarSocioPagoAdelantado(socio);
   }
   form.desde_periodo.value = periodoDefault();
-  form.fecha_pago.value = fechaActual();
+  form.fecha_pago.value = diaTrabajo();
   form.cantidad.value = 1;
   abrir($('#modalPagoAdelantado'));
 }
 
 async function cargarCaja() {
-  const fecha = $('#formCajaDia') ? $('#formCajaDia').fecha.value || fechaActual() : fechaActual();
+  const fecha = diaTrabajo();
   const data = await api(`/api/caja?fecha=${encodeURIComponent(fecha)}`);
   state.caja = {
     dia: data.dia,
@@ -1021,8 +1109,8 @@ async function cargarCaja() {
 async function cargarCajaListado() {
   const form = $('#formCajaListado');
   if (!form) return;
-  const desde = form.desde.value || fechaHace(30);
-  const hasta = form.hasta.value || fechaActual();
+  const desde = form.desde.value || fechaHaceDesde(diaTrabajo(), 30);
+  const hasta = form.hasta.value || diaTrabajo();
   const data = await api(`/api/caja/listado?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`);
   state.cajaListado = {
     dias: data.dias,
@@ -1108,8 +1196,7 @@ function renderCajaListado() {
       <td>${Number(dia.cerrado) === 1 ? 'Cerrada' : 'Abierta'}</td>
     `;
     tr.addEventListener('click', async () => {
-      $('#formCajaDia').fecha.value = dia.fecha;
-      await cargarCaja();
+      await cambiarDiaTrabajo(dia.fecha);
       enfocar('#formCajaDia');
     });
     body.appendChild(tr);
@@ -1120,7 +1207,7 @@ function abrirMovimientoCaja(tipo, id = null) {
   const form = $('#formCajaMovimiento');
   form.reset();
   form.id.value = '';
-  form.fecha.value = $('#formCajaDia').fecha.value || fechaActual();
+  form.fecha.value = diaTrabajo();
   form.tipo.value = tipo || 'ingreso';
   $('#cajaMovimientoTitulo').textContent = tipo === 'egreso' ? 'Nuevo egreso' : 'Nuevo ingreso';
   if (id) {
@@ -1147,7 +1234,7 @@ function abrirEditorCuota(id) {
   form.periodo.value = cuota.periodo;
   form.monto.value = decimalInput(cuota.monto);
   form.estado.value = cuota.estado;
-  form.fecha_pago.value = cuota.fecha_pago || '';
+  form.fecha_pago.value = cuota.fecha_pago || diaTrabajo();
   form.observacion.value = cuota.observacion || '';
   abrir($('#modalCuota'));
 }
@@ -1234,7 +1321,7 @@ function mostrarPaginaCaja() {
   $('#paginaCuotas').hidden = true;
   $('#paginaConfig').hidden = true;
   $('#paginaCaja').hidden = false;
-  if (!$('#formCajaDia').fecha.value) $('#formCajaDia').fecha.value = fechaActual();
+  $('#formCajaDia').fecha.value = diaTrabajo();
   cargarCaja();
 }
 
@@ -1361,11 +1448,12 @@ async function init() {
   $('#formFaltantesCuotas').desde.value = `${$('#formFaltantesCuotas').hasta.value.slice(0, 4)}-01`;
   if ($('#formCuota')) $('#formCuota').periodo.value = periodo;
   $('#formFiltroCuotas').periodo.value = periodo;
-  $('#formCajaDia').fecha.value = fechaActual();
-  $('#formCajaListado').desde.value = fechaHace(30);
-  $('#formCajaListado').hasta.value = fechaActual();
+  state.diaTrabajo = diaTrabajoGuardado();
+  aplicarDiaTrabajoAFormularios();
+  actualizarDiaTrabajoUI();
   actualizarModoBusquedaSocio('#buscarSocioCrud', '#buscarSocioCrudTodos');
   actualizarModoBusquedaSocio('#pagoAdelantadoSocioBuscar', '#pagoAdelantadoSocioBuscarTodos');
+  actualizarModoBusquedaSocio('#buscarCuotas', '#buscarCuotasTodos');
 
   if ($('#btnBuscar')) $('#btnBuscar').addEventListener('click', cargarSocios);
   if ($('#buscar')) {
@@ -1373,6 +1461,12 @@ async function init() {
       if (event.key === 'Enter') cargarSocios();
     });
   }
+  $('#diaTrabajoInput').addEventListener('change', (event) => {
+    cambiarDiaTrabajo(event.currentTarget.value).catch(error => toast(error.message));
+  });
+  $('#btnDiaTrabajoHoy').addEventListener('click', () => {
+    cambiarDiaTrabajo(fechaActual()).catch(error => toast(error.message));
+  });
 
   $('#formDashboard').addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -1439,9 +1533,15 @@ async function init() {
     actualizarModoBusquedaSocio('#pagoAdelantadoSocioBuscar', '#pagoAdelantadoSocioBuscarTodos');
     buscarSociosPagoAdelantado().catch(error => toast(error.message));
   });
+  $('#buscarCuotasTodos').addEventListener('change', () => {
+    actualizarModoBusquedaSocio('#buscarCuotas', '#buscarCuotasTodos');
+    cargarCuotas().catch(error => toast(error.message));
+  });
   $('#btnActualizarMorosos').addEventListener('click', cargarMorosos);
   $('#btnImprimirMorosos').addEventListener('click', () => window.open('/imprimir-morosos', '_blank'));
-  $('#formCajaDia').fecha.addEventListener('change', cargarCaja);
+  $('#formCajaDia').fecha.addEventListener('change', (event) => {
+    cambiarDiaTrabajo(event.currentTarget.value).catch(error => toast(error.message));
+  });
   $('#formGenerar').periodo.addEventListener('change', async () => {
     const control = await cargarControlGeneracion();
     if (control) {
@@ -1607,6 +1707,7 @@ async function init() {
   $('#formCajaDia').addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = formData(event.currentTarget);
+    data.fecha = diaTrabajo();
     data.cerrado = event.currentTarget.cerrado.checked ? '1' : '0';
     const request = { method: 'POST', body: JSON.stringify(data) };
     if (state.caja.dia && Number(state.caja.dia.cerrado) === 1) {
@@ -1653,6 +1754,7 @@ async function init() {
     const data = formData(event.currentTarget);
     const id = data.id;
     delete data.id;
+    if (!id) data.fecha = diaTrabajo();
     if (id) {
       await apiAdmin(
         `/api/caja/movimientos/${id}`,
@@ -1678,6 +1780,7 @@ async function init() {
   $('#formPagoAdelantado').addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = formData(event.currentTarget);
+    data.fecha_pago = diaTrabajo();
     if (!data.socio_id) {
       toast('Seleccione un socio para el pago adelantado');
       return;

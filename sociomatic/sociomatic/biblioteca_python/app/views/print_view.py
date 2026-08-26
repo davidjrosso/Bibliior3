@@ -45,6 +45,7 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
             return f"""
         <div class="talon {tipo.lower()}">
             <img class="marca-agua" src="/assets/watermark-biblioteca.png?v=20260817" alt="">
+            <img class="sello-logo" src="/assets/logo-biblioteca.png?v=20260825" alt="">
             <div class="talon-contenido">
                 <div class="tipo">{tipo}</div>
                 <header>
@@ -126,9 +127,23 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
       width: 56mm;
       height: 56mm;
       object-fit: contain;
-      opacity: 0.18;
+      opacity: 0.26;
       transform: translate(-50%, -50%);
       z-index: 0;
+      pointer-events: none;
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }}
+    .sello-logo {{
+      position: absolute;
+      top: 3.2mm;
+      right: 4.6mm;
+      width: 13mm;
+      height: auto;
+      object-fit: contain;
+      opacity: 0.86;
+      filter: grayscale(1) brightness(0);
+      z-index: 2;
       pointer-events: none;
       print-color-adjust: exact;
       -webkit-print-color-adjust: exact;

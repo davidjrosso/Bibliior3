@@ -15,7 +15,7 @@
       <label>Contrasena<input name="clave" type="password" autocomplete="current-password" required></label>
       <button>Entrar</button>
       <small>Usuario inicial: admin / clave inicial: 1234</small>
-      <span class="app-version">v2026.07.11.2</span>
+      <span class="app-version">v2026.08.25.1</span>
     </form>
   </section>
 
@@ -79,7 +79,13 @@
         </div>
       </details>
     </nav>
-    <span class="topbar-version" title="Version del sistema">v2026.07.11.2</span>
+    <div class="workday-control" title="Todas las cargas operativas usan este dia hasta que lo cambie.">
+      <span>Dia de trabajo</span>
+      <input id="diaTrabajoInput" type="date" aria-label="Dia de trabajo">
+      <button id="btnDiaTrabajoHoy" type="button" class="secondary">Hoy</button>
+      <strong id="diaTrabajoEstado">Hoy</strong>
+    </div>
+    <span class="topbar-version" title="Version del sistema">v2026.08.25.1</span>
     <button id="btnLogout" type="button" class="logout-button">Salir</button>
   </header>
 
@@ -170,7 +176,11 @@
           <div><strong id="cuotasMontoPendiente">$ 0,00</strong><span>Monto pendiente</span></div>
         </div>
         <form id="formFiltroCuotas" class="filters cuotas-filters">
-          <input name="q" type="search" placeholder="Socio, nro., DNI o direccion">
+          <input id="buscarCuotas" name="q" type="search" placeholder="Nro. de socio">
+          <label class="check-label search-mode-toggle cuotas-search-mode">
+            <input id="buscarCuotasTodos" name="modo_busqueda" value="todos" type="checkbox">
+            TODO
+          </label>
           <input name="periodo" type="month">
           <select name="estado">
             <option value="">Todos los estados</option>
@@ -357,7 +367,7 @@
               <button type="button" data-socio-cuotas-filter="todas">Todas</button>
             </div>
             <div class="member-paybar">
-              <label>Fecha<input id="socioPagoFecha" type="date"></label>
+              <label>Dia de trabajo<input id="socioPagoFecha" type="date" readonly></label>
               <label>Medio
                 <select id="socioPagoMedio">
                   <option value="efectivo">Efectivo</option>
@@ -503,7 +513,7 @@
       </div>
 
       <form id="formCajaDia" class="caja-day-form">
-        <label>Fecha<input name="fecha" type="date" required></label>
+        <label>Dia de trabajo<input name="fecha" type="date" required></label>
         <label>Saldo inicial<input name="saldo_inicial" type="text" inputmode="decimal" required></label>
         <label class="wide">Observacion<input name="observacion" placeholder="Detalle del dia, arqueo, aclaraciones"></label>
         <label class="check-label"><input name="cerrado" type="checkbox"> Caja cerrada</label>
@@ -672,7 +682,7 @@
       <h2 id="cajaMovimientoTitulo">Movimiento de caja</h2>
       <input name="id" type="hidden">
       <input name="tipo" type="hidden">
-      <label>Fecha<input name="fecha" type="date" required></label>
+      <label>Dia de trabajo<input name="fecha" type="date" required readonly></label>
       <label>Monto<input name="monto" type="text" inputmode="decimal" required></label>
       <label>Concepto<input name="concepto" list="conceptosCaja" required></label>
       <label>Medio de pago
@@ -714,7 +724,7 @@
       </div>
       <label>Desde periodo<input name="desde_periodo" type="month" required></label>
       <label>Cantidad de meses<input name="cantidad" type="number" min="1" max="60" value="1" required></label>
-      <label>Fecha de pago<input name="fecha_pago" type="date" required></label>
+      <label>Dia de trabajo<input name="fecha_pago" type="date" required readonly></label>
       <label>Medio de pago
         <select name="medio_pago">
           <option value="efectivo">Efectivo</option>
