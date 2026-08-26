@@ -10,6 +10,10 @@ def format_money(value) -> str:
     return "$ " + text.replace(",", "_").replace(".", ",").replace("_", ".")
 
 
+def format_member_number(value) -> str:
+    return str(int(value))
+
+
 def period_label(periodo: str) -> str:
     meses = {
         "01": "Enero",
@@ -44,7 +48,7 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
         def talon(tipo: str) -> str:
             return f"""
         <div class="talon {tipo.lower()}">
-            <img class="marca-agua" src="/assets/watermark-biblioteca.png?v=20260817" alt="">
+            <img class="marca-agua" src="/assets/watermark-biblioteca.png?v=20260826" alt="">
             <img class="sello-logo" src="/assets/logo-biblioteca.png?v=20260825" alt="">
             <div class="talon-contenido">
                 <div class="tipo">{tipo}</div>
@@ -56,7 +60,7 @@ def render_print(periodo: str, cobrador_nombre: str, rows) -> str:
                 <div class="datos">
                     <section class="datos-socio">
                         <strong>Cuota {periodo}</strong>
-                        <span>Socio #{format_number(row['nro_socio'])}</span>
+                        <span>Socio #{format_member_number(row['nro_socio'])}</span>
                         <b>{socio}</b>
                         <span>{direccion}</span>
                         <span>Barrio: {barrio}</span>
