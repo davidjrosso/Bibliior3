@@ -28,6 +28,11 @@ const state = {
   cajaListado: {
     dias: [],
     resumen: {}
+  },
+  reporteListado: {
+    tipo: 'socios',
+    filas: [],
+    resumen: {}
   }
 };
 
@@ -38,6 +43,65 @@ let authEventsBound = false;
 let pagoAdelantadoSearchTimer = null;
 let cuotasSeleccionadasSocio = new Set();
 const DIA_TRABAJO_KEY = 'biblioteca_dia_trabajo';
+const REPORT_COLUMNS = {
+  socios: [
+    { key: 'nro_socio', label: 'Nro.', default: true },
+    { key: 'socio', label: 'Socio', default: true },
+    { key: 'estado', label: 'Tipo', default: true },
+    { key: 'cobrador_texto', label: 'Cobrador', default: true },
+    { key: 'telefono', label: 'Telefono' },
+    { key: 'email', label: 'Correo' },
+    { key: 'dni', label: 'DNI' },
+    { key: 'direccion', label: 'Direccion' },
+    { key: 'barrio', label: 'Barrio' },
+    { key: 'localidad', label: 'Localidad' },
+    { key: 'fecha_alta', label: 'Ingreso' },
+    { key: 'fecha_baja', label: 'Baja' },
+    { key: 'cuotas_impagas', label: 'Impagas', format: 'number' },
+    { key: 'cuotas_pagas', label: 'Pagas', format: 'number' },
+    { key: 'deuda', label: 'Deuda', format: 'money' }
+  ],
+  deuda: [
+    { key: 'periodo', label: 'Periodo', default: true },
+    { key: 'nro_socio', label: 'Nro.', default: true },
+    { key: 'socio', label: 'Socio', default: true },
+    { key: 'cobrador_texto', label: 'Cobrador', default: true },
+    { key: 'monto', label: 'Monto', format: 'money', default: true },
+    { key: 'telefono', label: 'Telefono' },
+    { key: 'email', label: 'Correo' },
+    { key: 'direccion', label: 'Direccion' },
+    { key: 'barrio', label: 'Barrio' },
+    { key: 'localidad', label: 'Localidad' }
+  ],
+  pagadas: [
+    { key: 'fecha_pago', label: 'Fecha pago', default: true },
+    { key: 'periodo', label: 'Periodo', default: true },
+    { key: 'nro_socio', label: 'Nro.', default: true },
+    { key: 'socio', label: 'Socio', default: true },
+    { key: 'cobrador_texto', label: 'Cobrador', default: true },
+    { key: 'monto', label: 'Monto', format: 'money', default: true },
+    { key: 'medio_pago', label: 'Medio' },
+    { key: 'telefono', label: 'Telefono' },
+    { key: 'direccion', label: 'Direccion' }
+  ],
+  caja_movimientos: [
+    { key: 'fecha', label: 'Fecha', default: true },
+    { key: 'tipo', label: 'Tipo', default: true },
+    { key: 'concepto', label: 'Concepto', default: true },
+    { key: 'monto', label: 'Monto', format: 'money', default: true },
+    { key: 'descripcion', label: 'Descripcion', default: true },
+    { key: 'referencia', label: 'Referencia' },
+    { key: 'periodo', label: 'Periodo cuota' },
+    { key: 'nro_socio', label: 'Nro. socio' },
+    { key: 'socio', label: 'Socio' }
+  ]
+};
+const REPORT_TITLES = {
+  socios: 'Socios',
+  deuda: 'Cuotas adeudadas',
+  pagadas: 'Cuotas pagadas',
+  caja_movimientos: 'Movimientos de caja'
+};
 
 function periodoSiguiente() {
   const now = new Date();
@@ -296,6 +360,15 @@ function money(value) {
   return formatoDinero.format(Number(value || 0)).replace(/\s/g, ' ');
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function resetNuevoSocio() {
   const form = $('#formNuevo');
   form.reset();
@@ -367,7 +440,7 @@ function aplicarConfigUI() {
     .map(tipo => ({ value: tipo.id, label: tipo.nombre }));
 
   document.querySelectorAll('select[name="cobrador"]').forEach(select => {
-    if (select.closest('#formFiltroCuotas')) {
+    if (select.closest('#formFiltroCuotas') || select.closest('#formReportesListados')) {
       actualizarOpcionesCobrador(select, todos.concat(cobradores));
     } else if (select.closest('#formImprimir')) {
       actualizarOpcionesCobrador(select, impresion);
@@ -387,6 +460,12 @@ function aplicarConfigUI() {
   });
   if ($('#formConfig').socio_estado_default) {
     actualizarOpcionesCobrador($('#formConfig').socio_estado_default, tipos);
+  }
+  if ($('#formReportesListados') && $('#formReportesListados').tipo_socio) {
+    actualizarOpcionesCobrador(
+      $('#formReportesListados').tipo_socio,
+      [{ value: '', label: 'Todos los tipos' }].concat(tipos)
+    );
   }
 }
 
@@ -1203,6 +1282,188 @@ function renderCajaListado() {
   }
 }
 
+function tipoListadoReportes() {
+  return $('#formReportesListados')?.tipo.value || 'socios';
+}
+
+function columnasListadoReportes() {
+  return REPORT_COLUMNS[tipoListadoReportes()] || REPORT_COLUMNS.socios;
+}
+
+function columnasSeleccionadasReportes() {
+  const selected = [];
+  $('#reportesColumnas')?.querySelectorAll('input[type="checkbox"]').forEach(input => {
+    if (!input.checked) return;
+    const column = columnasListadoReportes().find(item => item.key === input.value);
+    if (column) selected.push(column);
+  });
+  return selected.length ? selected : columnasListadoReportes().filter(column => column.default);
+}
+
+function configurarFiltrosReportes() {
+  const tipo = tipoListadoReportes();
+  document.querySelectorAll('[data-report-filter]').forEach(label => {
+    const visible = label.dataset.reportFilter.split(' ').includes(tipo);
+    label.hidden = !visible;
+    label.querySelectorAll('input, select').forEach(control => {
+      control.disabled = !visible;
+      if (!visible) control.value = '';
+    });
+  });
+  const usaSocio = tipo !== 'caja_movimientos';
+  const buscar = $('#buscarReportes');
+  const buscarTodos = $('#buscarReportesTodos');
+  if (buscar) {
+    buscar.closest('label').hidden = !usaSocio;
+    buscar.disabled = !usaSocio;
+    if (!usaSocio) buscar.value = '';
+  }
+  if (buscarTodos) {
+    buscarTodos.closest('label').hidden = !usaSocio;
+    buscarTodos.disabled = !usaSocio;
+    if (!usaSocio) buscarTodos.checked = false;
+  }
+  if (usaSocio) actualizarModoBusquedaSocio('#buscarReportes', '#buscarReportesTodos');
+
+  const form = $('#formReportesListados');
+  if (!form) return;
+  if ((tipo === 'deuda' || tipo === 'pagadas') && !form.hasta_periodo.value) {
+    form.hasta_periodo.value = $('#formDashboard').periodo.value || periodoActual();
+  }
+  if ((tipo === 'pagadas' || tipo === 'caja_movimientos') && !form.fecha_hasta.value) {
+    form.fecha_hasta.value = diaTrabajo();
+  }
+  if ((tipo === 'pagadas' || tipo === 'caja_movimientos') && !form.fecha_desde.value) {
+    form.fecha_desde.value = fechaHaceDesde(diaTrabajo(), 30);
+  }
+}
+
+function renderColumnasReportes() {
+  const box = $('#reportesColumnas');
+  if (!box) return;
+  box.innerHTML = '';
+  for (const column of columnasListadoReportes()) {
+    const label = document.createElement('label');
+    label.className = 'check-label';
+    label.innerHTML = `
+      <input type="checkbox" value="${column.key}" ${column.default ? 'checked' : ''}>
+      ${column.label}
+    `;
+    box.appendChild(label);
+  }
+}
+
+function configurarListadoReportes() {
+  configurarFiltrosReportes();
+  renderColumnasReportes();
+}
+
+async function cargarListadoReportes() {
+  const form = $('#formReportesListados');
+  if (!form) return;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(formData(form))) {
+    if (value) params.set(key, value);
+  }
+  const data = await api(`/api/reportes/listados?${params.toString()}`);
+  state.reporteListado = {
+    tipo: data.tipo,
+    filas: data.filas || [],
+    resumen: data.resumen || {}
+  };
+  renderListadoReportes();
+}
+
+function valorListadoReporte(row, column) {
+  if (column.key === 'cobrador_texto') return `${row.cobrador || '-'} - ${cobradorTexto(row.cobrador) || '-'}`;
+  if (column.key === 'estado') return tipoSocioTexto(row.estado);
+  if (column.format === 'money') return money(row[column.key]);
+  if (column.format === 'number') return number(row[column.key]);
+  return row[column.key] || '-';
+}
+
+function renderListadoReportes() {
+  const head = $('#reportesHead');
+  const body = $('#reportesBody');
+  if (!head || !body) return;
+  const resumen = state.reporteListado.resumen || {};
+  const columns = columnasSeleccionadasReportes();
+  $('#reportesTotal').textContent = number(resumen.cantidad || 0);
+  $('#reportesMostrados').textContent = number(resumen.mostrados || 0);
+  if (state.reporteListado.tipo === 'caja_movimientos') {
+    $('#reportesMonto').textContent = money(resumen.neto || 0);
+    $('#reportesExtra').textContent = `${money(resumen.ingresos || 0)} / ${money(resumen.egresos || 0)}`;
+  } else {
+    $('#reportesMonto').textContent = money(resumen.monto ?? resumen.deuda ?? 0);
+    $('#reportesExtra').textContent = resumen.cuotas_impagas !== undefined
+      ? `${number(resumen.cuotas_impagas)} impagas`
+      : `Limite ${number(resumen.limite || 0)}`;
+  }
+
+  head.innerHTML = `<tr>${columns.map(column => `<th>${column.label}</th>`).join('')}</tr>`;
+  body.innerHTML = '';
+  if (!state.reporteListado.filas.length) {
+    body.innerHTML = `<tr><td colspan="${columns.length}">No hay datos para los filtros seleccionados.</td></tr>`;
+    return;
+  }
+  for (const row of state.reporteListado.filas) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = columns.map(column => `<td>${escapeHtml(valorListadoReporte(row, column))}</td>`).join('');
+    body.appendChild(tr);
+  }
+}
+
+function imprimirListadoReportes() {
+  const rows = state.reporteListado.filas || [];
+  if (!rows.length) {
+    toast('Genere un listado antes de imprimir');
+    return;
+  }
+  const columns = columnasSeleccionadasReportes();
+  const title = REPORT_TITLES[state.reporteListado.tipo] || 'Listado';
+  const resumen = state.reporteListado.resumen || {};
+  const htmlRows = rows.map(row => `
+    <tr>${columns.map(column => `<td>${escapeHtml(valorListadoReporte(row, column))}</td>`).join('')}</tr>
+  `).join('');
+  const win = window.open('', '_blank');
+  if (!win) {
+    toast('El navegador bloqueo la ventana de impresion');
+    return;
+  }
+  win.document.write(`<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #111; }
+    .barra { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    h1 { font-size: 18px; margin: 0; }
+    p { margin: 4px 0 0; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { border-bottom: 1px solid #bbb; text-align: left; padding: 5px; vertical-align: top; }
+    th { background: #eee; }
+    button { padding: 7px 10px; }
+    @media print { .barra { display: none; } body { margin: 0; } }
+  </style>
+</head>
+<body>
+  <div class="barra">
+    <div>
+      <h1>${escapeHtml(title)}</h1>
+      <p>Total: ${number(resumen.cantidad || 0)} | Mostrados: ${number(resumen.mostrados || 0)}</p>
+    </div>
+    <button onclick="window.print()">Imprimir</button>
+  </div>
+  <table>
+    <thead><tr>${columns.map(column => `<th>${escapeHtml(column.label)}</th>`).join('')}</tr></thead>
+    <tbody>${htmlRows}</tbody>
+  </table>
+</body>
+</html>`);
+  win.document.close();
+}
+
 function abrirMovimientoCaja(tipo, id = null) {
   const form = $('#formCajaMovimiento');
   form.reset();
@@ -1247,6 +1508,9 @@ async function refrescarTodo() {
   if ($('#paginaCaja') && !$('#paginaCaja').hidden) {
     await cargarCaja();
   }
+  if ($('#paginaReportes') && !$('#paginaReportes').hidden) {
+    await cargarListadoReportes();
+  }
   if (state.selectedId && $('#detalle')) {
     await seleccionarSocio(state.selectedId);
   }
@@ -1262,6 +1526,7 @@ function mostrarPaginaSocios() {
   $('#paginaCuotas').hidden = true;
   $('#paginaConfig').hidden = true;
   $('#paginaCaja').hidden = true;
+  $('#paginaReportes').hidden = true;
   resetNuevoSocio();
   state.socioCrudCuotas = [];
   cuotasSeleccionadasSocio = new Set();
@@ -1281,6 +1546,7 @@ function mostrarPaginaCuotas(vista = 'admin') {
   $('#paginaCuotas').hidden = false;
   $('#paginaConfig').hidden = true;
   $('#paginaCaja').hidden = true;
+  $('#paginaReportes').hidden = true;
   mostrarCuotasHoja(vista);
   cargarCuotas();
   cargarMorosos();
@@ -1302,6 +1568,7 @@ function mostrarPaginaInicio() {
   $('#paginaCuotas').hidden = true;
   $('#paginaConfig').hidden = true;
   $('#paginaCaja').hidden = true;
+  $('#paginaReportes').hidden = true;
   $('#paginaInicio').hidden = false;
   resetNuevoSocio();
 }
@@ -1312,6 +1579,7 @@ function mostrarPaginaConfig() {
   $('#paginaCuotas').hidden = true;
   $('#paginaConfig').hidden = false;
   $('#paginaCaja').hidden = true;
+  $('#paginaReportes').hidden = true;
   cargarConfig();
 }
 
@@ -1321,8 +1589,20 @@ function mostrarPaginaCaja() {
   $('#paginaCuotas').hidden = true;
   $('#paginaConfig').hidden = true;
   $('#paginaCaja').hidden = false;
+  $('#paginaReportes').hidden = true;
   $('#formCajaDia').fecha.value = diaTrabajo();
   cargarCaja();
+}
+
+function mostrarPaginaReportes() {
+  $('#paginaInicio').hidden = true;
+  $('#paginaSocios').hidden = true;
+  $('#paginaCuotas').hidden = true;
+  $('#paginaConfig').hidden = true;
+  $('#paginaCaja').hidden = true;
+  $('#paginaReportes').hidden = false;
+  configurarListadoReportes();
+  cargarListadoReportes();
 }
 
 function cerrarMenus() {
@@ -1342,6 +1622,10 @@ function navegar(action) {
   cerrarMenus();
   if (action === 'inicio' || action === 'reporte-dashboard') {
     mostrarPaginaInicio();
+    return;
+  }
+  if (action === 'reportes-listados') {
+    mostrarPaginaReportes();
     return;
   }
   if (action === 'socios') {
@@ -1448,12 +1732,16 @@ async function init() {
   $('#formFaltantesCuotas').desde.value = `${$('#formFaltantesCuotas').hasta.value.slice(0, 4)}-01`;
   if ($('#formCuota')) $('#formCuota').periodo.value = periodo;
   $('#formFiltroCuotas').periodo.value = periodo;
+  $('#formReportesListados').hasta_periodo.value = periodo;
+  $('#formReportesListados').limite.value = '500';
   state.diaTrabajo = diaTrabajoGuardado();
   aplicarDiaTrabajoAFormularios();
   actualizarDiaTrabajoUI();
   actualizarModoBusquedaSocio('#buscarSocioCrud', '#buscarSocioCrudTodos');
   actualizarModoBusquedaSocio('#pagoAdelantadoSocioBuscar', '#pagoAdelantadoSocioBuscarTodos');
   actualizarModoBusquedaSocio('#buscarCuotas', '#buscarCuotasTodos');
+  actualizarModoBusquedaSocio('#buscarReportes', '#buscarReportesTodos');
+  configurarListadoReportes();
 
   if ($('#btnBuscar')) $('#btnBuscar').addEventListener('click', cargarSocios);
   if ($('#buscar')) {
@@ -1492,6 +1780,7 @@ async function init() {
   $('#btnVolverInicio').addEventListener('click', mostrarPaginaInicio);
   $('#btnVolverInicioCuotas').addEventListener('click', mostrarPaginaInicio);
   $('#btnCajaVolver').addEventListener('click', mostrarPaginaInicio);
+  $('#btnReportesVolver').addEventListener('click', mostrarPaginaInicio);
   $('#btnVolverInicioConfig').addEventListener('click', mostrarPaginaInicio);
   $('#btnConfigCancelar').addEventListener('click', mostrarPaginaInicio);
   $('#btnConfig').addEventListener('click', mostrarPaginaConfig);
@@ -1523,6 +1812,19 @@ async function init() {
   $('#btnCajaEgreso').addEventListener('click', () => abrirMovimientoCaja('egreso'));
   $('#btnCajaActualizar').addEventListener('click', cargarCaja);
   $('#btnPagoAdelantado').addEventListener('click', abrirPagoAdelantado);
+  $('#formReportesListados').tipo.addEventListener('change', () => {
+    configurarListadoReportes();
+    cargarListadoReportes().catch(error => toast(error.message));
+  });
+  $('#buscarReportesTodos').addEventListener('change', () => {
+    actualizarModoBusquedaSocio('#buscarReportes', '#buscarReportesTodos');
+    cargarListadoReportes().catch(error => toast(error.message));
+  });
+  $('#formReportesListados').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await cargarListadoReportes();
+  });
+  $('#btnImprimirListadoReportes').addEventListener('click', imprimirListadoReportes);
   $('#pagoAdelantadoSocioBuscar').addEventListener('input', () => {
     clearTimeout(pagoAdelantadoSearchTimer);
     pagoAdelantadoSearchTimer = setTimeout(() => {

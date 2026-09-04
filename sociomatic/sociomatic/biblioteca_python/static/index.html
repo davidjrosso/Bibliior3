@@ -14,7 +14,7 @@
       <label>Usuario<input name="usuario" autocomplete="username" required autofocus></label>
       <label>Contrasena<input name="clave" type="password" autocomplete="current-password" required></label>
       <button>Entrar</button>
-      <span class="app-version">v2026.08.26.1</span>
+      <span class="app-version">v2026.09.03.1</span>
     </form>
   </section>
 
@@ -59,6 +59,7 @@
         <summary>Reportes</summary>
         <div class="nav-panel">
           <button type="button" data-nav="reporte-dashboard">Dashboard</button>
+          <button type="button" data-nav="reportes-listados">Listados</button>
           <button type="button" data-nav="reporte-morosos">Morosos</button>
           <button type="button" data-nav="reporte-caja">Caja del dia</button>
           <button type="button" data-nav="reporte-caja-listado">Listado diario</button>
@@ -84,7 +85,7 @@
       <button id="btnDiaTrabajoHoy" type="button" class="secondary">Hoy</button>
       <strong id="diaTrabajoEstado">Hoy</strong>
     </div>
-    <span class="topbar-version" title="Version del sistema">v2026.08.26.1</span>
+    <span class="topbar-version" title="Version del sistema">v2026.09.03.1</span>
     <button id="btnLogout" type="button" class="logout-button">Salir</button>
   </header>
 
@@ -139,6 +140,104 @@
     </section>
 
   </div>
+
+  <section id="paginaReportes" class="page" hidden>
+    <section class="panel report-page">
+      <div class="section-head">
+        <div>
+          <h2>Listados</h2>
+          <p>Consultas imprimibles para socios, cuotas y caja.</p>
+        </div>
+        <div class="row-actions">
+          <button type="button" id="btnReportesVolver" class="secondary">Volver</button>
+          <button type="button" id="btnImprimirListadoReportes">Imprimir</button>
+        </div>
+      </div>
+
+      <form id="formReportesListados" class="report-builder">
+        <section class="report-controls">
+          <label>Listado
+            <select name="tipo">
+              <option value="socios">Socios</option>
+              <option value="deuda">Cuotas adeudadas</option>
+              <option value="pagadas">Cuotas pagadas</option>
+              <option value="caja_movimientos">Movimientos de caja</option>
+            </select>
+          </label>
+          <label>Buscar
+            <input id="buscarReportes" name="q" type="search" placeholder="Nro. de socio">
+          </label>
+          <label class="check-label search-mode-toggle report-search-mode">
+            <input id="buscarReportesTodos" name="modo_busqueda" value="todos" type="checkbox">
+            TODO
+          </label>
+          <label data-report-filter="socios">Estado
+            <select name="estado_socio">
+              <option value="activos">Activos</option>
+              <option value="morosos">Morosos</option>
+              <option value="bajas">Dados de baja</option>
+              <option value="todos">Todos</option>
+            </select>
+          </label>
+          <label data-report-filter="socios">Tipo de socio
+            <select name="tipo_socio">
+              <option value="">Todos los tipos</option>
+            </select>
+          </label>
+          <label data-report-filter="socios deuda pagadas">Cobrador
+            <select name="cobrador">
+              <option value="">Todos los cobradores</option>
+            </select>
+          </label>
+          <label data-report-filter="deuda pagadas">Desde periodo
+            <input name="desde_periodo" type="month">
+          </label>
+          <label data-report-filter="deuda pagadas">Hasta periodo
+            <input name="hasta_periodo" type="month">
+          </label>
+          <label data-report-filter="pagadas caja_movimientos">Desde fecha
+            <input name="fecha_desde" type="date">
+          </label>
+          <label data-report-filter="pagadas caja_movimientos">Hasta fecha
+            <input name="fecha_hasta" type="date">
+          </label>
+          <label data-report-filter="caja_movimientos">Tipo movimiento
+            <select name="tipo_movimiento">
+              <option value="">Ingresos y egresos</option>
+              <option value="ingreso">Ingresos</option>
+              <option value="egreso">Egresos</option>
+            </select>
+          </label>
+          <label>Mostrar
+            <input name="limite" type="number" min="1" max="5000" value="500">
+          </label>
+          <button>Generar</button>
+        </section>
+
+        <section class="report-columns">
+          <div>
+            <h3>Datos a mostrar</h3>
+            <p>Active solo las columnas que necesita para este listado.</p>
+          </div>
+          <div id="reportesColumnas" class="report-column-list"></div>
+        </section>
+      </form>
+
+      <div class="summary-grid report-summary">
+        <div><strong id="reportesTotal">0</strong><span>Registros</span></div>
+        <div><strong id="reportesMostrados">0</strong><span>Mostrados</span></div>
+        <div><strong id="reportesMonto">$ 0,00</strong><span>Monto</span></div>
+        <div><strong id="reportesExtra">-</strong><span>Resumen</span></div>
+      </div>
+
+      <div class="table-wrap report-table">
+        <table id="reportesListadoTable">
+          <thead id="reportesHead"></thead>
+          <tbody id="reportesBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
 
   <section id="paginaCuotas" class="page" hidden>
     <section class="panel module-shell cuotas-shell">

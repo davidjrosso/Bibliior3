@@ -3,7 +3,7 @@ import re
 import sqlite3
 from http import HTTPStatus
 
-from app.controllers import auth_controller, caja_controller, config_controller, cuota_controller, dashboard_controller, print_controller, socio_controller
+from app.controllers import auth_controller, caja_controller, config_controller, cuota_controller, dashboard_controller, print_controller, reporte_controller, socio_controller
 from app.controllers.base_controller import html_response, json_response
 from app.models.database import get_db
 from app.services import security_service
@@ -65,6 +65,9 @@ def dispatch_api(handler, method: str, path: str, query: dict) -> None:
 
             if path == "/api/dashboard" and method == "GET":
                 dashboard_controller.get(handler, conn, query)
+                return
+            if path == "/api/reportes/listados" and method == "GET":
+                reporte_controller.listados(handler, conn, query)
                 return
 
             if path == "/api/caja/listado" and method == "GET":

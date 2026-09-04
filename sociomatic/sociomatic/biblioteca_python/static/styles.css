@@ -1083,6 +1083,79 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
   max-height: 48vh;
 }
 
+.report-page {
+  display: grid;
+  gap: 14px;
+}
+
+.report-builder {
+  display: grid;
+  gap: 12px;
+}
+
+.report-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.report-controls label {
+  min-width: 0;
+}
+
+.report-controls button {
+  min-height: 40px;
+}
+
+.report-search-mode {
+  min-height: 40px;
+  justify-content: center;
+  align-self: end;
+}
+
+.report-columns {
+  display: grid;
+  grid-template-columns: minmax(180px, .6fr) 1.4fr;
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.report-columns p {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.report-column-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-column-list .check-label {
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.report-summary {
+  margin: 0;
+}
+
+.report-table {
+  max-height: 58vh;
+}
+
 .caja-daily-list {
   margin-top: 14px;
 }
@@ -1157,4 +1230,6 @@ dialog::backdrop { background: rgba(0,0,0,.35); }
   .config-crud-grid { grid-template-columns: 1fr; }
   .caja-day-form { grid-template-columns: 1fr; }
   .member-paybar { grid-template-columns: 1fr; }
+  .report-controls { grid-template-columns: 1fr; }
+  .report-columns { grid-template-columns: 1fr; }
 }
