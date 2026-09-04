@@ -1,6 +1,6 @@
 # Manual de usuario - Sistema Biblioteca
 
-Versión del sistema: `v2026.09.03.1`  
+Versión del sistema: `v2026.09.03.2`  
 Uso previsto: administración de socios, cuotas, caja diaria, reportes y configuración.
 
 Desde el sistema se puede abrir en `Ayuda > Manual de usuario`.
